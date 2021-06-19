@@ -1,10 +1,10 @@
-package net.hypercubemc.iris_installer;
+package net.hypercubemc.universe_installer;
 import com.formdev.flatlaf.FlatLightLaf;
 import net.fabricmc.installer.Main;
 import net.fabricmc.installer.util.MetaHandler;
 import net.fabricmc.installer.util.Reference;
 import net.fabricmc.installer.util.Utils;
-import net.hypercubemc.iris_installer.layouts.VerticalLayout;
+import net.hypercubemc.universe_installer.layouts.VerticalLayout;
 import org.json.JSONException;
 
 import javax.net.ssl.HttpsURLConnection;
@@ -24,7 +24,7 @@ public class Installer {
     InstallerMeta INSTALLER_META;
     List<InstallerMeta.Edition> EDITIONS;
     List<String> GAME_VERSIONS;
-    String BASE_URL = "https://raw.githubusercontent.com/IrisShaders/Iris-Installer-Files/master/";
+    String BASE_URL = "https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Files/master/";
 
     String selectedEditionName;
     String selectedEditionDisplayName;
@@ -88,12 +88,12 @@ public class Installer {
         GAME_VERSIONS = INSTALLER_META.getGameVersions();
         EDITIONS = INSTALLER_META.getEditions();
 
-        JFrame frame = new JFrame("Iris Installer");
+        JFrame frame = new JFrame("Universe Installer");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout());
         frame.setSize(350,350);
         frame.setLocationRelativeTo(null); // Centers the window
-        frame.setIconImage(new ImageIcon(Objects.requireNonNull(Utils.class.getClassLoader().getResource("iris_profile_icon.png"))).getImage());
+        frame.setIconImage(new ImageIcon(Objects.requireNonNull(Utils.class.getClassLoader().getResource("universe_profile_icon.png"))).getImage()); // Credit to Pixxi#0001 for the icon
 
         JPanel topPanel = new JPanel(new VerticalLayout());
 
@@ -201,21 +201,21 @@ public class Installer {
                 return;
             }
 
-            // Use IMS's custom fabric loader if "use custom loader" is set
+            // Use Universe's custom fabric loader if "use custom loader" is set
             if (useCustomLoader) {
-                Reference.metaServerUrl = "https://raw.githubusercontent.com/IrisShaders/Iris-Installer-Maven/master/";
+                Reference.metaServerUrl = "https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Maven/master/";
                 System.out.println("Using custom loader");
             } else {
                 Reference.metaServerUrl = "https://meta.fabricmc.net/";
                 System.out.println("Using fabric loader");
             }
 
-            String loaderName = useCustomLoader ? "iris-fabric-loader" : "fabric-loader";
+            String loaderName = useCustomLoader ? "universe-fabric-loader" : "fabric-loader";
 
             try {
-                URL loaderVersionUrl = new URL("https://raw.githubusercontent.com/IrisShaders/Iris-Installer-Maven/master/latest-loader");
-                String loaderVersion = useCustomLoader ? Utils.readTextFile(loaderVersionUrl) : Main.LOADER_META.getLatestVersion(false).getVersion();
-                VanillaLauncherIntegration.installToLauncher(getVanillaGameDir(), getInstallDir(), useCustomLoader ? selectedEditionDisplayName : "Fabric Loader " + selectedVersion, selectedVersion, loaderName, loaderVersion, useCustomLoader ? VanillaLauncherIntegration.Icon.IRIS : VanillaLauncherIntegration.Icon.FABRIC);
+                URL customLoaderVersionUrl = new URL("https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Maven/master/latest-loader");
+                String loaderVersion = useCustomLoader ? Utils.readTextFile(customLoaderVersionUrl) : Main.LOADER_META.getLatestVersion(false).getVersion();
+                VanillaLauncherIntegration.installToLauncher(getVanillaGameDir(), getInstallDir(), useCustomLoader ? selectedEditionDisplayName : "Fabric Loader " + selectedVersion, selectedVersion, loaderName, loaderVersion, useCustomLoader ? VanillaLauncherIntegration.Icon.UNIVERSE : VanillaLauncherIntegration.Icon.FABRIC);
             } catch (IOException e) {
                 System.out.println("Failed to install version and profile to vanilla launcher!");
                 e.printStackTrace();
@@ -234,7 +234,7 @@ public class Installer {
 
             String zipName = selectedEditionName + ".zip";
 
-            String downloadURL = "https://github.com/IrisShaders/Iris-Installer-Files/releases/latest/download/" + zipName;
+            String downloadURL = BASE_URL + selectedVersion + "/" + zipName;
 
             File saveLocation = getStorageDirectory().resolve(zipName).toFile();
 
@@ -260,75 +260,22 @@ public class Installer {
 
                     button.setText("Download completed!");
 
-                    boolean cancelled = false;
-
                     File installDir = getInstallDir().toFile();
                     if (!installDir.exists() || !installDir.isDirectory()) installDir.mkdir();
 
-                    File modsFolder = getInstallDir().resolve(useCustomLoader ? "iris-reserved" : "mods").toFile();
+                    File modsFolder = getInstallDir().resolve(useCustomLoader ? "universe-reserved" : "mods").toFile();
                     File[] modsFolderContents = modsFolder.listFiles();
-
                     if (modsFolderContents != null) {
                         boolean isEmpty = modsFolderContents.length == 0;
 
                         if (!useCustomLoader && modsFolder.exists() && modsFolder.isDirectory() && !isEmpty) {
-                            int result = JOptionPane.showConfirmDialog(frame,"An existing mods folder was found in the selected game directory. Do you want to update/install iris?", "Mods Folder Detected",
+                            int result = JOptionPane.showConfirmDialog(frame,"An existing mods folder was found in the selected game directory. Do you want to delete all existing mods before installation to prevent version conflicts? (Unless you know exactly what you are doing and how to solve the conflicts, press yes)", "Mods Folder Detected",
                                     JOptionPane.YES_NO_OPTION,
                                     JOptionPane.QUESTION_MESSAGE);
-                            if (result != JOptionPane.YES_OPTION) {
-                                cancelled = true;
+                            if (result == JOptionPane.YES_OPTION) {
+                                deleteDirectory(modsFolder);
                             }
                         }
-
-                        if (!cancelled) {
-                            boolean shownOptifineDialog = false;
-                            boolean failedToRemoveOptifine = false;
-
-                            for (File mod : modsFolderContents) {
-                                if (mod.getName().toLowerCase().contains("optifine") || mod.getName().toLowerCase().contains("optifabric")) {
-                                    if (!shownOptifineDialog) {
-                                        int result = JOptionPane.showOptionDialog(frame,"Optifine was found in your mods folder, but Optifine is incompatible with Iris. Do you want to remove it, or cancel the installation?", "Optifine Detected",
-                                                JOptionPane.DEFAULT_OPTION,
-                                                JOptionPane.WARNING_MESSAGE, null, new String[]{"Yes", "Cancel"}, "Yes");
-
-                                        shownOptifineDialog = true;
-                                        if (result != JOptionPane.YES_OPTION) {
-                                            cancelled = true;
-                                            break;
-                                        }
-                                    }
-
-                                    if (!mod.delete()) failedToRemoveOptifine = true;
-                                }
-                            }
-
-                            if (failedToRemoveOptifine) {
-                                System.out.println("Failed to delete optifine from mods folder");
-                                JOptionPane.showMessageDialog(frame, "Failed to remove optifine from your mods folder, please make sure your game is closed and try again!", "Failed to remove optifine", JOptionPane.ERROR_MESSAGE);
-                                cancelled = true;
-                            }
-                        }
-
-                        if (!cancelled) {
-                            boolean failedToRemoveIrisOrSodium = false;
-
-                            for (File mod : modsFolderContents) {
-                                if (mod.getName().toLowerCase().contains("iris") || mod.getName().toLowerCase().contains("sodium-fabric")) {
-                                    if (!mod.delete()) failedToRemoveIrisOrSodium = true;
-                                }
-                            }
-
-                            if (failedToRemoveIrisOrSodium) {
-                                System.out.println("Failed to remove Iris or Sodium from mods folder to update them!");
-                                JOptionPane.showMessageDialog(frame, "Failed to remove iris and sodium from your mods folder to update them, please make sure your game is closed and try again!", "Failed to prepare mods for update", JOptionPane.ERROR_MESSAGE);
-                                cancelled = true;
-                            }
-                        }
-                    }
-
-                    if (cancelled) {
-                        readyAll();
-                        return;
                     }
 
                     if (!modsFolder.exists() || !modsFolder.isDirectory()) modsFolder.mkdir();
@@ -413,7 +360,7 @@ public class Installer {
                 String entryName = entry.getName();
 
                 if (useCustomLoader && entryName.startsWith("mods/")) {
-                    entryName = entryName.replace("mods/", "iris-reserved/");
+                    entryName = entryName.replace("mods/", "universe-reserved/");
                 }
 
                 File filePath = getInstallDir().resolve(entryName).toFile();
@@ -464,9 +411,9 @@ public class Installer {
     public String getStorageDirectoryName() {
         String os = System.getProperty("os.name").toLowerCase();
         if (os.contains("mac"))
-            return "iris-installer";
+            return "universe-installer";
         else
-            return ".iris-installer";
+            return ".universe-installer";
     }
 
     public Path getDefaultInstallDir() {

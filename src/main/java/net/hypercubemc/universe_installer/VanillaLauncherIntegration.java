@@ -1,4 +1,4 @@
-package net.hypercubemc.iris_installer;
+package net.hypercubemc.universe_installer;
 
 import net.fabricmc.installer.util.Reference;
 import net.fabricmc.installer.util.Utils;
@@ -89,7 +89,7 @@ public class VanillaLauncherIntegration {
         }
 
         try {
-            InputStream is = Utils.class.getClassLoader().getResourceAsStream("iris_profile_icon.png");
+            InputStream is = Utils.class.getClassLoader().getResourceAsStream("universe_profile_icon.png");
 
             String var4;
             try {
@@ -129,7 +129,7 @@ public class VanillaLauncherIntegration {
     }
 
     public enum Icon {
-        IRIS,
+        UNIVERSE,
         FABRIC
     }
 }

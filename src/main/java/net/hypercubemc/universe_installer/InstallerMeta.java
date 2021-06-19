@@ -1,4 +1,4 @@
-package net.hypercubemc.iris_installer;
+package net.hypercubemc.universe_installer;
 
 import org.json.JSONException;
 import org.json.JSONObject;
