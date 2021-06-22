@@ -278,6 +278,7 @@ public class Installer {
                         }
                     }
 
+                    if (useCustomLoader) deleteDirectory(modsFolder);
                     if (!modsFolder.exists() || !modsFolder.isDirectory()) modsFolder.mkdir();
 
                     boolean installSuccess = installFromZip(saveLocation);
