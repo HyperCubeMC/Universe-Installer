@@ -13,10 +13,13 @@ import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.io.*;
 import java.net.URL;
+import java.nio.Buffer;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -24,7 +27,7 @@ public class Installer {
     InstallerMeta INSTALLER_META;
     List<InstallerMeta.Edition> EDITIONS;
     List<String> GAME_VERSIONS;
-    String BASE_URL = "https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Files/master/";
+    String BASE_URL = "https://raw.githubusercontent.com/TheMythMC/Universe-Installer-Files/master/";
 
     String selectedEditionName;
     String selectedEditionDisplayName;
@@ -40,6 +43,8 @@ public class Installer {
 
     boolean finishedSuccessfulInstall = false;
     boolean useCustomLoader = true;
+
+    final String configFile = "config.cfg";
 
     public Installer() {
 
@@ -59,6 +64,8 @@ public class Installer {
             System.out.println("Failed to set UI theme!");
             e.printStackTrace();
         }
+
+        loadConfigs();
 
         Main.LOADER_META = new MetaHandler(Reference.getMetaServerEndpoint("v2/versions/loader"));
         try {
@@ -81,7 +88,7 @@ public class Installer {
         } catch (JSONException e) {
             System.out.println("Failed to fetch installer metadata from the server!");
             e.printStackTrace();
-            JOptionPane.showMessageDialog(null, "Installer metadata parsing failed, please contact Justsnoopy30! \nError: " + e, "Metadata Parsing Failed!", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(null, "Installer metadata parsing failed, please contact Myth#3260! \nError: " + e, "Metadata Parsing Failed!", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
@@ -108,6 +115,9 @@ public class Installer {
             editionNames.add(edition.name);
             editionDisplayNames.add(edition.displayName);
         }
+
+        if(true) {}
+
         String[] editionNameList = editionNames.toArray(new String[0]);
         selectedEditionName = editionNameList[0];
         String[] editionDisplayNameList = editionDisplayNames.toArray(new String[0]);
@@ -165,7 +175,8 @@ public class Installer {
             if (option == JFileChooser.APPROVE_OPTION) {
                 File file = fileChooser.getSelectedFile();
                 customInstallDir = file.toPath();
-                installDirectoryPicker.setText(file.getName());
+                String[] pathText = file.getPath().split(File.separator);
+                installDirectoryPicker.setText(pathText[pathText.length - 2] + File.separator + pathText[pathText.length - 1]);
 
                 readyAll();
             }
@@ -289,6 +300,7 @@ public class Installer {
                         versionDropdown.setEnabled(true);
                         installDirectoryPicker.setEnabled(true);
                         useCustomLoaderCheckbox.setEnabled(true);
+                        writeToConfigFile(this.selectedEditionName, this.selectedEditionDisplayName ,this.selectedVersion, this.getInstallDir(), this.useCustomLoader);
                     } else {
                         button.setText("Installation failed!");
                         System.out.println("Failed to install to mods folder!");
@@ -308,6 +320,32 @@ public class Installer {
         frame.setVisible(true);
 
         System.out.println("Launched!");
+    }
+
+    public void loadConfigs() {
+        try {
+            BufferedReader br = new BufferedReader( new FileReader(getStorageDirectoryName() + File.separator + configFile));
+
+            List<String> lines = new ArrayList<String>();
+
+            String line;
+            while ((line = br.readLine()) != null) {
+                lines.add(line);
+            }
+
+            String[] readLines = lines.toArray(new String[]{});
+
+            selectedEditionName = readLines[0];
+            selectedEditionDisplayName = readLines[1];
+            selectedVersion = readLines[2];
+            customInstallDir = new File(readLines[3]).toPath();
+        } catch (FileNotFoundException e) {
+            System.out.println("No config directory found... going ahead with defaults");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+
     }
 
     // Works up to 2GB because of long limitation
@@ -455,5 +493,15 @@ public class Installer {
         button.setText("Install");
         progressBar.setValue(0);
         setInteractionEnabled(true);
+    }
+
+    public void writeToConfigFile(String edition, String editionDisplayName,String version, Path installDir , boolean useCustomLoader) {
+        try {
+            BufferedWriter bw = new BufferedWriter(new FileWriter(getStorageDirectoryName() + File.separator + this.configFile));
+
+            bw.write(edition + "\n" + editionDisplayName + "\n" + version  + "\n" + installDir.toString() +  "\n" + useCustomLoader);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
