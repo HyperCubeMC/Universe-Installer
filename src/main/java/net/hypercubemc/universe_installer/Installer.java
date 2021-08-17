@@ -27,7 +27,7 @@ public class Installer {
     InstallerMeta INSTALLER_META;
     List<InstallerMeta.Edition> EDITIONS;
     List<String> GAME_VERSIONS;
-    String BASE_URL = "https://raw.githubusercontent.com/TheMythMC/Universe-Installer-Files/master/";
+    String BASE_URL = "https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Files/master/";
 
     String selectedEditionName;
     String selectedEditionDisplayName;
@@ -88,7 +88,7 @@ public class Installer {
         } catch (JSONException e) {
             System.out.println("Failed to fetch installer metadata from the server!");
             e.printStackTrace();
-            JOptionPane.showMessageDialog(null, "Installer metadata parsing failed, please contact Myth#3260! \nError: " + e, "Metadata Parsing Failed!", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(null, "Installer metadata parsing failed, please contact Justsnoopy30! \nError: " + e, "Metadata Parsing Failed!", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
@@ -115,8 +115,6 @@ public class Installer {
             editionNames.add(edition.name);
             editionDisplayNames.add(edition.displayName);
         }
-
-        if(true) {}
 
         String[] editionNameList = editionNames.toArray(new String[0]);
         selectedEditionName = editionNameList[0];
