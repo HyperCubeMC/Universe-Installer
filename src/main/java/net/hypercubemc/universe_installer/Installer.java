@@ -1,5 +1,6 @@
 package net.hypercubemc.universe_installer;
 import com.formdev.flatlaf.FlatLightLaf;
+import com.formdev.flatlaf.json.Json;
 import me.tongfei.progressbar.ProgressBar;
 import me.tongfei.progressbar.ProgressBarStyle;
 import net.fabricmc.installer.Main;
@@ -8,6 +9,7 @@ import net.fabricmc.installer.util.Reference;
 import net.fabricmc.installer.util.Utils;
 import net.hypercubemc.universe_installer.layouts.VerticalLayout;
 import org.json.JSONException;
+import org.json.JSONObject;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.swing.*;
@@ -113,8 +115,8 @@ public class Installer {
                             "If left blank defaults to 'Universe'\n" +
                       "--version " + Arrays.toString(GAME_VERSIONS.subList(0, GAME_VERSIONS.size()).toArray()) + " \n" +
                             "If left blank defaults to " + GAME_VERSIONS.subList(0, GAME_VERSIONS.size()).toArray()[0] + "\n" +
-                      "--installDir [Any Directory] If left null, it will default to the normal minecraft directory for your operating system\n" +
-                      "--useCustomLoader [true, false] (Recommended) This will use the custom loader that uses the mods not in the mods folder but the universe-reserved folder. \n" +
+                      "--install-dir [Any Directory] If left null, it will default to the normal minecraft directory for your operating system\n" +
+                      "--use-custom-loader [true, false] (Recommended) This will use the custom loader that uses the mods not in the mods folder but the universe-reserved folder. \n" +
                             "If left blank defaults to true."
             );
             return;
@@ -142,8 +144,8 @@ public class Installer {
 
         selectedVersion = data.get("version") == null ? selectedVersion : data.get("version");
         selectedEditionName = data.get("edition") == null ? selectedEditionName : data.get("edition");
-        customInstallDir = data.get("installDir") == null ? customInstallDir : Paths.get(data.get("installDir"));
-        useCustomLoader = data.get("useCustomLoader") == null ? useCustomLoader : Boolean.parseBoolean(data.get("useCustomLoader"));
+        customInstallDir = data.get("install-dir") == null ? customInstallDir : Paths.get(data.get("installDir"));
+        useCustomLoader = data.get("use-custom-loader") == null ? useCustomLoader : Boolean.parseBoolean(data.get("useCustomLoader"));
         System.out.println("Downloading...");
 
         String zipName = selectedEditionName + ".zip";
@@ -180,6 +182,8 @@ public class Installer {
         boolean installSuccess = installFromZip(saveLocation);
 
         if (installSuccess) {
+            writeUniverseConfigFile();
+
             System.out.println("Universe has been installed!");
         }
     }
@@ -404,6 +408,7 @@ public class Installer {
                     boolean installSuccess = installFromZip(saveLocation);
 
                     if (installSuccess) {
+                        writeUniverseConfigFile();
                         button.setText("Installation succeeded!");
                         finishedSuccessfulInstall = true;
                         editionDropdown.setEnabled(true);
@@ -628,12 +633,41 @@ public class Installer {
         setInteractionEnabled(true);
     }
 
+    public String grabLatestCommit() {
+        try {
+            BufferedReader br = new BufferedReader(new InputStreamReader(new URL("https://api.github.com/repos/HyperCubeMC/Universe-Installer-Files/commits/master").openStream()));
+            StringBuilder stringBuilder = new StringBuilder();
+            int codePoint;
+            while ((codePoint = br.read()) != -1) {
+                stringBuilder.append((char) codePoint);
+            }
+            return new JSONObject(stringBuilder.toString()).getString("sha");
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
     public void setConfigsFile(String edition, String editionDisplayName,String version, Path installDir , boolean useCustomLoader) {
        // Why is there no easy way to do this.... i hate it
         universeInstallerProperties.setProperty("edition", edition);
-        universeInstallerProperties.setProperty("editionDisplayName", editionDisplayName);
+        universeInstallerProperties.setProperty("edition-display-name", editionDisplayName);
         universeInstallerProperties.setProperty("version", version);
-        universeInstallerProperties.setProperty("installDir", installDir.toString());
-        universeInstallerProperties.setProperty("useCustomLoader", Boolean.toString(useCustomLoader));
+        universeInstallerProperties.setProperty("install-dir", installDir.toString());
+        universeInstallerProperties.setProperty("use-custom-loader", Boolean.toString(useCustomLoader));
+    }
+    public void writeUniverseConfigFile() {
+        // AGAIN SAME HERE... I CAN'T TAKE IT ANYMORE
+        Properties universePackProperties = new Properties();
+        universePackProperties.setProperty("last-commit", grabLatestCommit());
+        universePackProperties.setProperty("edition", selectedEditionName);
+        universePackProperties.setProperty("version", selectedVersion);
+        universePackProperties.setProperty("use-custom-loader", Boolean.toString(useCustomLoader));
+        universePackProperties.setProperty("install-dir", getInstallDir().toString());
+        try {
+            universePackProperties.store(new FileWriter(getInstallDir().toString() + "config/universe.properties"), null);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
