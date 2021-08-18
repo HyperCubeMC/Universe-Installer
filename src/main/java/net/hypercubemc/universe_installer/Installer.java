@@ -15,6 +15,7 @@ import java.io.*;
 import java.net.URL;
 import java.nio.Buffer;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -44,7 +45,9 @@ public class Installer {
     boolean finishedSuccessfulInstall = false;
     boolean useCustomLoader = true;
 
-    final String configFile = "config.cfg";
+    final String configFile = "universe-installer.properties";
+    final Properties universeInstallerProperties = new Properties();
+
 
     public Installer() {
 
@@ -52,21 +55,25 @@ public class Installer {
 
     public static void main(String[] args) {
         System.out.println("Launching installer...");
-        new Installer().start();
+        new Installer().start(args);
     }
 
-    public void start() {
-        FlatLightLaf.install();
+    public void start(String[] args) {
 
-        try {
-            UIManager.setLookAndFeel(new FlatLightLaf());
-        } catch (Exception e) {
-            System.out.println("Failed to set UI theme!");
-            e.printStackTrace();
+        if (args == null) {
+            loadConfigs();
         }
+        loadMetas();
 
-        loadConfigs();
+        if (args == null) {
+            doGui();
+        }
+        else {
+            doCli(args);
+        }
+    }
 
+    public void loadMetas() {
         Main.LOADER_META = new MetaHandler(Reference.getMetaServerEndpoint("v2/versions/loader"));
         try {
             Main.LOADER_META.load();
@@ -90,6 +97,40 @@ public class Installer {
             e.printStackTrace();
             JOptionPane.showMessageDialog(null, "Installer metadata parsing failed, please contact Justsnoopy30! \nError: " + e, "Metadata Parsing Failed!", JOptionPane.ERROR_MESSAGE);
             return;
+        }
+    }
+
+    public void doCli(String... args) {
+
+        if (Objects.equals(args[0], "--help") || Objects.equals(args[0], "-h") || Objects.equals(args[0], "-help")) {
+            System.out.println(
+                    "This is the CLI version of universe, mostly used for the Universe Updater mod but can be used \n" +
+                      "If you prefer not to use the GUI. The options are as follows: \n" +
+                      "--edition [Pixxi-Pack, Universe] \n" +
+                      "--version 1.17.1 (This will be updated to grab from the github repository but for right now there is only one version) \n" +
+                      "--installDir [Any Directory] If left null, it will default to the normal minecraft directory for your operating system\n" +
+                      "--useCustomLoader [true, false] (Recommended) This will use the custom loader that uses the mods not in the mods folder but the universe-reserved folder."
+            );
+            return;
+        }
+
+        System.out.println(Arrays.toString(args));
+        Map<String, String> data = new HashMap<>();
+        for (int i = 0; i < args.length; i+=2) {
+            data.put(args[i].toLowerCase(Locale.ROOT).replace("-", ""), args[i+1].toLowerCase(Locale.ROOT));
+        }
+        selectedVersion = data.get("version");
+        selectedEditionName = data.get("edition");
+    }
+
+    public void doGui() {
+        FlatLightLaf.install();
+
+        try {
+            UIManager.setLookAndFeel(new FlatLightLaf());
+        } catch (Exception e) {
+            System.out.println("Failed to set UI theme!");
+            e.printStackTrace();
         }
 
         GAME_VERSIONS = INSTALLER_META.getGameVersions();
@@ -210,31 +251,8 @@ public class Installer {
                 return;
             }
 
-            // Use Universe's custom fabric loader if "use custom loader" is set
-            if (useCustomLoader) {
-                Reference.metaServerUrl = "https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Maven/master/";
-                System.out.println("Using custom loader");
-            } else {
-                Reference.metaServerUrl = "https://meta.fabricmc.net/";
-                System.out.println("Using fabric loader");
-            }
-
-            String loaderName = useCustomLoader ? "universe-fabric-loader" : "fabric-loader";
-
-            try {
-                URL customLoaderVersionUrl = new URL("https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Maven/master/latest-loader");
-                String loaderVersion = useCustomLoader ? Utils.readTextFile(customLoaderVersionUrl) : Main.LOADER_META.getLatestVersion(false).getVersion();
-                VanillaLauncherIntegration.installToLauncher(getVanillaGameDir(), getInstallDir(), useCustomLoader ? selectedEditionDisplayName : "Fabric Loader " + selectedVersion, selectedVersion, loaderName, loaderVersion, useCustomLoader ? VanillaLauncherIntegration.Icon.UNIVERSE : VanillaLauncherIntegration.Icon.FABRIC);
-            } catch (IOException e) {
-                System.out.println("Failed to install version and profile to vanilla launcher!");
-                e.printStackTrace();
-                JOptionPane.showMessageDialog(frame, "Failed to install to vanilla launcher, please contact Justsnoopy30! \nError: " + e, "Failed to install to launcher", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            File storageDir = getStorageDirectory().toFile();
-            if (!storageDir.exists() || !storageDir.isDirectory()) {
-                storageDir.mkdir();
+            if(!prepareForDownloading()) {
+                JOptionPane.showMessageDialog(frame, "Failed to install to vanilla launcher, please contact Justsnoopy30! ", "Failed to install to launcher", JOptionPane.ERROR_MESSAGE);
             }
 
             button.setText("Downloading...");
@@ -272,6 +290,8 @@ public class Installer {
                     File installDir = getInstallDir().toFile();
                     if (!installDir.exists() || !installDir.isDirectory()) installDir.mkdir();
 
+
+
                     File modsFolder = getInstallDir().resolve(useCustomLoader ? "universe-reserved" : "mods").toFile();
                     File[] modsFolderContents = modsFolder.listFiles();
                     if (modsFolderContents != null) {
@@ -291,6 +311,7 @@ public class Installer {
                     if (!modsFolder.exists() || !modsFolder.isDirectory()) modsFolder.mkdir();
 
                     boolean installSuccess = installFromZip(saveLocation);
+
                     if (installSuccess) {
                         button.setText("Installation succeeded!");
                         finishedSuccessfulInstall = true;
@@ -298,7 +319,12 @@ public class Installer {
                         versionDropdown.setEnabled(true);
                         installDirectoryPicker.setEnabled(true);
                         useCustomLoaderCheckbox.setEnabled(true);
-                        writeToConfigFile(this.selectedEditionName, this.selectedEditionDisplayName ,this.selectedVersion, this.getInstallDir(), this.useCustomLoader);
+                        setConfigsFile(this.selectedEditionName, this.selectedEditionDisplayName ,this.selectedVersion, this.getInstallDir(), this.useCustomLoader);
+                        try {
+                            universeInstallerProperties.store(new FileWriter(configFile), null);
+                        } catch (IOException e) {
+                            System.out.println("Something went wrong trying to save the config file... Here's a stacktrace for you: " + e);
+                        }
                     } else {
                         button.setText("Installation failed!");
                         System.out.println("Failed to install to mods folder!");
@@ -322,32 +348,20 @@ public class Installer {
 
     public void loadConfigs() {
         try {
-            BufferedReader br = new BufferedReader( new FileReader(getStorageDirectoryName() + File.separator + configFile));
-
-            List<String> lines = new ArrayList<String>();
-
-            String line;
-            while ((line = br.readLine()) != null) {
-                lines.add(line);
-            }
-
-            String[] readLines = lines.toArray(new String[]{});
-
-            selectedEditionName = readLines[0];
-            selectedEditionDisplayName = readLines[1];
-            selectedVersion = readLines[2];
-            customInstallDir = new File(readLines[3]).toPath();
-        } catch (FileNotFoundException e) {
-            System.out.println("No config directory found... going ahead with defaults");
+            universeInstallerProperties.load(new FileInputStream(configFile));
+            selectedEditionName = universeInstallerProperties.getProperty("edition");
+            selectedEditionDisplayName = universeInstallerProperties.getProperty("edition-display-name");
+            selectedVersion = universeInstallerProperties.getProperty("version");
+            customInstallDir = Paths.get(universeInstallerProperties.getProperty("install-dir"));
+            useCustomLoader = Boolean.parseBoolean(universeInstallerProperties.getProperty("use-custom-loader"));
         } catch (IOException e) {
-            e.printStackTrace();
+            System.out.println("No previous config file found... Continuing with defaults");
         }
-
-
     }
 
-    // Works up to 2GB because of long limitation
-    class Downloader extends SwingWorker<Void, Void> {
+    // Works up to 9007200 GB because of double limitation
+
+    static class Downloader extends SwingWorker<Void, Void> {
         private final String url;
         private final File file;
 
@@ -365,7 +379,7 @@ public class Installer {
             if (filesize == -1) {
                 throw new Exception("Content length must not be -1 (unknown)!");
             }
-            long totalDataRead = 0;
+            double totalDataRead = 0;
             try (java.io.BufferedInputStream in = new java.io.BufferedInputStream(
                     connection.getInputStream())) {
                 java.io.FileOutputStream fos = new java.io.FileOutputStream(file);
@@ -383,6 +397,36 @@ public class Installer {
             }
             return null;
         }
+    }
+
+    public boolean prepareForDownloading() {
+
+        // Use Universe's custom fabric loader if "use custom loader" is set
+        if (useCustomLoader) {
+            Reference.metaServerUrl = "https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Maven/master/";
+            System.out.println("Using custom loader");
+        } else {
+            Reference.metaServerUrl = "https://meta.fabricmc.net/";
+            System.out.println("Using fabric loader");
+        }
+
+        String loaderName = useCustomLoader ? "universe-fabric-loader" : "fabric-loader";
+
+        try {
+            URL customLoaderVersionUrl = new URL("https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Maven/master/latest-loader");
+            String loaderVersion = useCustomLoader ? Utils.readTextFile(customLoaderVersionUrl) : Main.LOADER_META.getLatestVersion(false).getVersion();
+            VanillaLauncherIntegration.installToLauncher(getVanillaGameDir(), getInstallDir(), useCustomLoader ? selectedEditionDisplayName : "Fabric Loader " + selectedVersion, selectedVersion, loaderName, loaderVersion, useCustomLoader ? VanillaLauncherIntegration.Icon.UNIVERSE : VanillaLauncherIntegration.Icon.FABRIC);
+        } catch (IOException e) {
+            System.out.println("Failed to install version and profile to vanilla launcher!");
+            e.printStackTrace();
+            return false;
+        }
+
+        File storageDir = getStorageDirectory().toFile();
+        if (!storageDir.exists() || !storageDir.isDirectory()) {
+            storageDir.mkdir();
+        }
+        return true;
     }
 
     public boolean installFromZip(File zip) {
@@ -405,7 +449,7 @@ public class Installer {
                     // if the entry is a file, extracts it
                     BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(filePath));
                     byte[] bytesIn = new byte[BUFFER_SIZE];
-                    int read = 0;
+                    int read;
                     while ((read = zipIn.read(bytesIn)) != -1) {
                         bos.write(bytesIn, 0, read);
                     }
@@ -493,13 +537,12 @@ public class Installer {
         setInteractionEnabled(true);
     }
 
-    public void writeToConfigFile(String edition, String editionDisplayName,String version, Path installDir , boolean useCustomLoader) {
-        try {
-            BufferedWriter bw = new BufferedWriter(new FileWriter(getStorageDirectoryName() + File.separator + this.configFile));
-
-            bw.write(edition + "\n" + editionDisplayName + "\n" + version  + "\n" + installDir.toString() +  "\n" + useCustomLoader);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+    public void setConfigsFile(String edition, String editionDisplayName,String version, Path installDir , boolean useCustomLoader) {
+       // Why is there no easy way to do this.... i hate it
+        universeInstallerProperties.setProperty("edition", edition);
+        universeInstallerProperties.setProperty("editionDisplayName", editionDisplayName);
+        universeInstallerProperties.setProperty("version", version);
+        universeInstallerProperties.setProperty("installDir", installDir.toString());
+        universeInstallerProperties.setProperty("useCustomLoader", Boolean.toString(useCustomLoader));
     }
 }
