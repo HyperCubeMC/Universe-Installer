@@ -1,5 +1,7 @@
 package net.hypercubemc.universe_installer;
 import com.formdev.flatlaf.FlatLightLaf;
+import me.tongfei.progressbar.ProgressBar;
+import me.tongfei.progressbar.ProgressBarStyle;
 import net.fabricmc.installer.Main;
 import net.fabricmc.installer.util.MetaHandler;
 import net.fabricmc.installer.util.Reference;
@@ -16,6 +18,8 @@ import java.net.URL;
 import java.nio.Buffer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -45,7 +49,7 @@ public class Installer {
     boolean finishedSuccessfulInstall = false;
     boolean useCustomLoader = true;
 
-    final String configFile = "universe-installer.properties";
+    final String configFile = getStorageDirectoryName() + "universe-installer.properties";
     final Properties universeInstallerProperties = new Properties();
 
 
@@ -60,12 +64,11 @@ public class Installer {
 
     public void start(String[] args) {
 
-        if (args == null) {
-            loadConfigs();
-        }
+        loadConfigs();
+
         loadMetas();
 
-        if (args == null) {
+        if (args.length == 0) {
             doGui();
         }
         else {
@@ -106,10 +109,13 @@ public class Installer {
             System.out.println(
                     "This is the CLI version of universe, mostly used for the Universe Updater mod but can be used \n" +
                       "If you prefer not to use the GUI. The options are as follows: \n" +
-                      "--edition [Pixxi-Pack, Universe] \n" +
-                      "--version 1.17.1 (This will be updated to grab from the github repository but for right now there is only one version) \n" +
+                      "--edition [Universe, Pixxi-Pack] \n" +
+                            "If left blank defaults to 'Universe'\n" +
+                      "--version " + Arrays.toString(GAME_VERSIONS.subList(0, GAME_VERSIONS.size()).toArray()) + " \n" +
+                            "If left blank defaults to " + GAME_VERSIONS.subList(0, GAME_VERSIONS.size()).toArray()[0] + "\n" +
                       "--installDir [Any Directory] If left null, it will default to the normal minecraft directory for your operating system\n" +
-                      "--useCustomLoader [true, false] (Recommended) This will use the custom loader that uses the mods not in the mods folder but the universe-reserved folder."
+                      "--useCustomLoader [true, false] (Recommended) This will use the custom loader that uses the mods not in the mods folder but the universe-reserved folder. \n" +
+                            "If left blank defaults to true."
             );
             return;
         }
@@ -119,9 +125,94 @@ public class Installer {
         for (int i = 0; i < args.length; i+=2) {
             data.put(args[i].toLowerCase(Locale.ROOT).replace("-", ""), args[i+1].toLowerCase(Locale.ROOT));
         }
-        selectedVersion = data.get("version");
-        selectedEditionName = data.get("edition");
+
+        GAME_VERSIONS = INSTALLER_META.getGameVersions();
+        EDITIONS = INSTALLER_META.getEditions();
+        List<String> editionNames = new ArrayList<>();
+        List<String> editionDisplayNames = new ArrayList<>();
+        for (InstallerMeta.Edition edition : EDITIONS) {
+            editionNames.add(edition.name);
+            editionDisplayNames.add(edition.displayName);
+        }
+
+        String[] editionNameList = editionNames.toArray(new String[0]);
+        selectedEditionName = editionNameList[0];
+        String[] editionDisplayNameList = editionDisplayNames.toArray(new String[0]);
+        selectedEditionDisplayName = editionDisplayNameList[0];
+
+        selectedVersion = data.get("version") == null ? selectedVersion : data.get("version");
+        selectedEditionName = data.get("edition") == null ? selectedEditionName : data.get("edition");
+        customInstallDir = data.get("installDir") == null ? customInstallDir : Paths.get(data.get("installDir"));
+        useCustomLoader = data.get("useCustomLoader") == null ? useCustomLoader : Boolean.parseBoolean(data.get("useCustomLoader"));
+        System.out.println("Downloading...");
+
+        String zipName = selectedEditionName + ".zip";
+
+        String downloadURL = BASE_URL + selectedVersion + "/" + zipName;
+
+        File saveLocation = getStorageDirectory().resolve(zipName).toFile();
+
+        try {
+            cuiDownloader(downloadURL, saveLocation);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        System.out.println("Download Complete!");
+
+        File installDir = getInstallDir().toFile();
+        if (!installDir.exists() || !installDir.isDirectory()) installDir.mkdir();
+
+        File modsFolder = getInstallDir().resolve(useCustomLoader ? "universe-reserved" : "mods").toFile();
+        File[] modsFolderContents = modsFolder.listFiles();
+        if (modsFolderContents != null) {
+            boolean isEmpty = modsFolderContents.length == 0;
+            if (!isEmpty) {
+                System.out.println("An existing mods folder has been detected!! \nDo you want to delete it? Press no only if you know EXACTLY what you are doing!!! (Y/n)");
+                String option = new Scanner(System.in).nextLine().trim();
+                if (option.equals("") || option.toLowerCase().startsWith("y")) {
+                    deleteDirectory(modsFolder);
+                }
+            }
+        }
+        if (useCustomLoader) deleteDirectory(modsFolder);
+        if (!modsFolder.exists() || !modsFolder.isDirectory()) modsFolder.mkdir();
+
+        boolean installSuccess = installFromZip(saveLocation);
+
+        if (installSuccess) {
+            System.out.println("Universe has been installed!");
+        }
     }
+
+    public void cuiDownloader(String url, File saveLocation) throws Exception {
+        URL url1 = new URL(url);
+        HttpsURLConnection connection = (HttpsURLConnection) url1
+                .openConnection();
+        long filesize = connection.getContentLengthLong();
+        if (filesize == -1) {
+            throw new Exception("Content length must not be -1 (unknown)!");
+        }
+        long totalDataRead = 0;
+        try (java.io.BufferedInputStream in = new java.io.BufferedInputStream(
+                connection.getInputStream())) {
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(saveLocation);
+            try (java.io.BufferedOutputStream bout = new BufferedOutputStream(
+                    fos, 1024)) {
+                byte[] data = new byte[1024];
+                int i;
+                try (ProgressBar pb = new ProgressBar("Download Progress", 100, 50, System.err, ProgressBarStyle.ASCII, "", 1, false, null, ChronoUnit.SECONDS, 0L, Duration.ZERO)) {
+                    while ((i = in.read(data, 0, 1024)) >= 0) {
+                        totalDataRead = totalDataRead + i;
+                        bout.write(data, 0, i);
+                        int percent = (int) ((totalDataRead * 100) / filesize);
+                        pb.stepTo(percent);
+                    }
+                }
+            }
+        }
+
+    }
+
 
     public void doGui() {
         FlatLightLaf.install();
@@ -375,7 +466,7 @@ public class Installer {
             URL url = new URL(this.url);
             HttpsURLConnection connection = (HttpsURLConnection) url
                     .openConnection();
-            long filesize = connection.getContentLengthLong();
+            double filesize = connection.getContentLengthLong();
             if (filesize == -1) {
                 throw new Exception("Content length must not be -1 (unknown)!");
             }

@@ -4,8 +4,8 @@ plugins {
     id "de.undercouch.download" version "4.1.1"
 }
 
-sourceCompatibility = JavaVersion.VERSION_1_8
-targetCompatibility = JavaVersion.VERSION_1_8
+sourceCompatibility = JavaVersion.VERSION_11
+targetCompatibility = JavaVersion.VERSION_11
 
 archivesBaseName = project.archives_base_name
 version = project.version
