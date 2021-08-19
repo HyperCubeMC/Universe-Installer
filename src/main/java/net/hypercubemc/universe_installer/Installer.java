@@ -14,6 +14,7 @@ import java.awt.event.ItemEvent;
 import java.io.*;
 import java.net.URL;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -25,6 +26,9 @@ public class Installer {
     List<InstallerMeta.Edition> EDITIONS;
     List<String> GAME_VERSIONS;
     String BASE_URL = "https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Files/master/";
+
+    Properties universeInstallerProperties = new Properties();
+    String universeInstallerPropertiesFile = "universe-installer.properties";
 
     String selectedEditionName;
     String selectedEditionDisplayName;
@@ -40,6 +44,7 @@ public class Installer {
 
     boolean finishedSuccessfulInstall = false;
     boolean useCustomLoader = true;
+    boolean configsLoaded = false;
 
     public Installer() {
 
@@ -51,6 +56,9 @@ public class Installer {
     }
 
     public void start() {
+        loadMetas();
+        configsLoaded = loadConfigs();
+
         FlatLightLaf.install();
 
         try {
@@ -60,33 +68,7 @@ public class Installer {
             e.printStackTrace();
         }
 
-        Main.LOADER_META = new MetaHandler(Reference.getMetaServerEndpoint("v2/versions/loader"));
-        try {
-            Main.LOADER_META.load();
-        } catch (Exception e) {
-            System.out.println("Failed to fetch fabric version info from the server!");
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(null, "The installer was unable to fetch fabric version info from the server, please check your internet connection and try again later.", "Please check your internet connection!", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
 
-        INSTALLER_META = new InstallerMeta(BASE_URL + "meta.json");
-        try {
-            INSTALLER_META.load();
-        } catch (IOException e) {
-            System.out.println("Failed to fetch installer metadata from the server!");
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(null, "The installer was unable to fetch metadata from the server, please check your internet connection and try again later.", "Please check your internet connection!", JOptionPane.ERROR_MESSAGE);
-            return;
-        } catch (JSONException e) {
-            System.out.println("Failed to fetch installer metadata from the server!");
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(null, "Installer metadata parsing failed, please contact Justsnoopy30! \nError: " + e, "Metadata Parsing Failed!", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        GAME_VERSIONS = INSTALLER_META.getGameVersions();
-        EDITIONS = INSTALLER_META.getEditions();
 
         JFrame frame = new JFrame("Universe Installer");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -101,19 +83,24 @@ public class Installer {
 
         JLabel editionDropdownLabel = new JLabel("Select Edition:");
         editionDropdownLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-
+        String[] editionDisplayNameList;
+        String[] editionNameList;
+        @SuppressWarnings("DuplicatedCode") // Needed because im NOT about to use global variables (for this)
         List<String> editionNames = new ArrayList<>();
         List<String> editionDisplayNames = new ArrayList<>();
         for (InstallerMeta.Edition edition : EDITIONS) {
             editionNames.add(edition.name);
             editionDisplayNames.add(edition.displayName);
         }
-        String[] editionNameList = editionNames.toArray(new String[0]);
-        selectedEditionName = editionNameList[0];
-        String[] editionDisplayNameList = editionDisplayNames.toArray(new String[0]);
-        selectedEditionDisplayName = editionDisplayNameList[0];
+        editionDisplayNameList = editionDisplayNames.toArray(new String[0]);
+        editionNameList = editionNames.toArray(new String[0]);
 
-        editionDropdown = new JComboBox<>(editionDisplayNameList);
+        if (!configsLoaded) {
+            selectedEditionName = editionNameList[0];
+            selectedEditionDisplayName = editionDisplayNameList[0];
+        }
+
+        editionDropdown = new JComboBox<>((editionDisplayNameList));
         editionDropdown.addItemListener(e -> {
             if (e.getStateChange() == ItemEvent.SELECTED) {
                 selectedEditionName = editionNameList[editionDropdown.getSelectedIndex()];
@@ -137,7 +124,8 @@ public class Installer {
         List<String> gameVersions = GAME_VERSIONS.subList(0, GAME_VERSIONS.size()); // Clone the list
         Collections.reverse(gameVersions); // Reverse the order of the list so that the latest version is on top and older versions downward
         String[] gameVersionList = gameVersions.toArray(new String[0]);
-        selectedVersion = gameVersionList[0];
+        if (!configsLoaded)
+            selectedVersion = gameVersionList[0];
 
         versionDropdown = new JComboBox<>(gameVersionList);
         versionDropdown.addItemListener(e -> {
@@ -289,6 +277,7 @@ public class Installer {
                         versionDropdown.setEnabled(true);
                         installDirectoryPicker.setEnabled(true);
                         useCustomLoaderCheckbox.setEnabled(true);
+                        writeConfigFile();
                     } else {
                         button.setText("Installation failed!");
                         System.out.println("Failed to install to mods folder!");
@@ -349,6 +338,36 @@ public class Installer {
         }
     }
 
+    public void loadMetas() {
+        Main.LOADER_META = new MetaHandler(Reference.getMetaServerEndpoint("v2/versions/loader"));
+        try {
+            Main.LOADER_META.load();
+        } catch (Exception e) {
+            System.out.println("Failed to fetch fabric version info from the server!");
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "The installer was unable to fetch fabric version info from the server, please check your internet connection and try again later.", "Please check your internet connection!", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        INSTALLER_META = new InstallerMeta(BASE_URL + "meta.json");
+        try {
+            INSTALLER_META.load();
+        } catch (IOException e) {
+            System.out.println("Failed to fetch installer metadata from the server!");
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "The installer was unable to fetch metadata from the server, please check your internet connection and try again later.", "Please check your internet connection!", JOptionPane.ERROR_MESSAGE);
+            return;
+        } catch (JSONException e) {
+            System.out.println("Failed to fetch installer metadata from the server!");
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Installer metadata parsing failed, please contact Justsnoopy30! \nError: " + e, "Metadata Parsing Failed!", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        GAME_VERSIONS = INSTALLER_META.getGameVersions();
+        EDITIONS = INSTALLER_META.getEditions();
+    }
+
     public boolean installFromZip(File zip) {
         try {
             int BUFFER_SIZE = 2048; // Buffer Size
@@ -388,6 +407,62 @@ public class Installer {
             return false;
         }
     }
+
+    public boolean loadConfigs() {
+        File propertiesFile = new File(getStorageDirectory() + universeInstallerPropertiesFile);
+        if (!propertiesFile.exists()) {
+            try {
+               if (!propertiesFile.createNewFile()) {
+                   System.out.println("Unable to create new properties file.");
+                   return false;
+               }
+            } catch (IOException e) {
+                System.out.println("Unable to create new properties file. Error:\n" + e);
+                return false;
+            }
+        }
+        try {
+            universeInstallerProperties.load(new FileInputStream(propertiesFile));
+        } catch (IOException e) {
+            System.out.println("Unable to load properties file. Error: \n" + e);
+            return false;
+        }
+        // Checks if file is null
+        try {
+            BufferedReader br = new BufferedReader(new FileReader(getStorageDirectory() + universeInstallerPropertiesFile));
+            if(br.readLine().trim().equals("")) {
+                System.out.println("No configs were found.. defaulting");
+                return false;
+            }
+        } catch (IOException e) {
+            System.out.println("Error found when reading file.");
+            return false;
+        }
+
+        // I hate doing this but there really isnt another way without global variables (The code roasting begins)
+        List<String> editionNames = new ArrayList<>();
+        List<String> editionDisplayNames = new ArrayList<>();
+        for (InstallerMeta.Edition edition : EDITIONS) {
+            editionNames.add(edition.name);
+            editionDisplayNames.add(edition.displayName);
+        }
+        List<String> gameVersions = GAME_VERSIONS.subList(0, GAME_VERSIONS.size());
+        Collections.reverse(gameVersions);
+        String[] gameVersionList = gameVersions.toArray(new String[0]);
+
+        String[] editionNameList = editionNames.toArray(new String[0]);
+        selectedEditionName = editionNameList[0];
+        String[] editionDisplayNameList = editionDisplayNames.toArray(new String[0]);
+
+        // I hope to God I am doing this wrong and that there is an easier way
+        selectedEditionName = universeInstallerProperties.getProperty("edition") == null ? selectedEditionName : universeInstallerProperties.getProperty("edition");
+        selectedEditionDisplayName = universeInstallerProperties.get("edition-display-name") == null ? editionDisplayNameList[0] : universeInstallerProperties.getProperty("edition-display-name");
+        selectedVersion = universeInstallerProperties.getProperty("version") == null ? gameVersionList[0] : universeInstallerProperties.getProperty("selected-version");
+        customInstallDir = universeInstallerProperties.getProperty("custom-install-dir") == null ? getInstallDir() : Paths.get(universeInstallerProperties.getProperty("custom-install-dir"));
+        useCustomLoader = universeInstallerProperties.getProperty("use-custom-loader") == null ? useCustomLoader : Boolean.getBoolean(universeInstallerProperties.getProperty("use-custom-loader"));
+        return true;
+    }
+
 
     public Path getStorageDirectory() {
         return getAppDataDirectory().resolve(getStorageDirectoryName());
@@ -455,5 +530,13 @@ public class Installer {
         button.setText("Install");
         progressBar.setValue(0);
         setInteractionEnabled(true);
+    }
+
+    public void writeConfigFile() {
+        try {
+            universeInstallerProperties.store(new FileWriter(getStorageDirectory() + universeInstallerPropertiesFile), null);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
