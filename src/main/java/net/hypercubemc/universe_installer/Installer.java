@@ -6,7 +6,6 @@ import net.fabricmc.installer.util.Reference;
 import net.fabricmc.installer.util.Utils;
 import net.hypercubemc.universe_installer.layouts.VerticalLayout;
 import org.json.JSONException;
-import sun.jvm.hotspot.memory.Universe;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.swing.*;
