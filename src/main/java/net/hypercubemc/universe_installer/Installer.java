@@ -6,6 +6,7 @@ import net.fabricmc.installer.util.Reference;
 import net.fabricmc.installer.util.Utils;
 import net.hypercubemc.universe_installer.layouts.VerticalLayout;
 import org.json.JSONException;
+import sun.jvm.hotspot.memory.Universe;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.swing.*;
@@ -38,8 +39,10 @@ public class Installer {
     JCheckBox useCustomLoaderCheckbox;
     JProgressBar progressBar;
 
+    UniverseConfig config = new UniverseConfig();
+
     boolean finishedSuccessfulInstall = false;
-    boolean useCustomLoader = true;
+    boolean useCustomLoader;
 
     public Installer() {
 
@@ -53,6 +56,8 @@ public class Installer {
     public void start() {
         FlatLightLaf.install();
 
+        config.load();
+        useCustomLoader = config.getCustomInstallDir() == null || config.getUseCustomLoader();
         try {
             UIManager.setLookAndFeel(new FlatLightLaf());
         } catch (Exception e) {
@@ -109,9 +114,9 @@ public class Installer {
             editionDisplayNames.add(edition.displayName);
         }
         String[] editionNameList = editionNames.toArray(new String[0]);
-        selectedEditionName = editionNameList[0];
+        selectedEditionName = config.getSelectedEditionName() == null ? config.getSelectedEditionName() : editionNameList[0];
         String[] editionDisplayNameList = editionDisplayNames.toArray(new String[0]);
-        selectedEditionDisplayName = editionDisplayNameList[0];
+        selectedEditionDisplayName = config.getSelectedEditionDisplayName() == null ? editionDisplayNameList[0] : config.getSelectedEditionDisplayName();
 
         editionDropdown = new JComboBox<>(editionDisplayNameList);
         editionDropdown.addItemListener(e -> {
@@ -137,7 +142,7 @@ public class Installer {
         List<String> gameVersions = GAME_VERSIONS.subList(0, GAME_VERSIONS.size()); // Clone the list
         Collections.reverse(gameVersions); // Reverse the order of the list so that the latest version is on top and older versions downward
         String[] gameVersionList = gameVersions.toArray(new String[0]);
-        selectedVersion = gameVersionList[0];
+        selectedVersion = config.getSelectedVersion() == null ? gameVersionList[0] : config.getSelectedVersion();
 
         versionDropdown = new JComboBox<>(gameVersionList);
         versionDropdown.addItemListener(e -> {
@@ -289,6 +294,7 @@ public class Installer {
                         versionDropdown.setEnabled(true);
                         installDirectoryPicker.setEnabled(true);
                         useCustomLoaderCheckbox.setEnabled(true);
+                        config.write();
                     } else {
                         button.setText("Installation failed!");
                         System.out.println("Failed to install to mods folder!");
@@ -390,7 +396,7 @@ public class Installer {
     }
 
     public Path getStorageDirectory() {
-        return getAppDataDirectory().resolve(getStorageDirectoryName());
+        return this.getAppDataDirectory().resolve(getStorageDirectoryName());
     }
 
     public Path getInstallDir() {
@@ -456,4 +462,5 @@ public class Installer {
         progressBar.setValue(0);
         setInteractionEnabled(true);
     }
+
 }
