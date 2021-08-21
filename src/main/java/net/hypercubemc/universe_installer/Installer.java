@@ -41,7 +41,7 @@ public class Installer {
     UniverseConfig config = new UniverseConfig();
 
     boolean finishedSuccessfulInstall = false;
-    boolean useCustomLoader;
+    boolean useCustomLoader = config.getUseCustomLoader();
 
     public Installer() {
 
@@ -56,7 +56,7 @@ public class Installer {
         FlatLightLaf.install();
 
         config.load();
-        useCustomLoader = config.getCustomInstallDir() == null || config.getUseCustomLoader();
+
         try {
             UIManager.setLookAndFeel(new FlatLightLaf());
         } catch (Exception e) {

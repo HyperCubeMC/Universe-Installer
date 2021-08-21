@@ -1,7 +1,5 @@
 package net.hypercubemc.universe_installer;
 
-
-import javax.annotation.processing.FilerException;
 import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -14,8 +12,6 @@ public class UniverseConfig {
     private Path customInstallDir;
     private boolean useCustomLoader;
 
-    private final Installer installer = new Installer();
-
     private final Path propertiesPath;
     private final Properties properties;
 
@@ -25,6 +21,7 @@ public class UniverseConfig {
         selectedEditionDisplayName = null;
         selectedVersion = null;
         customInstallDir = null;
+        useCustomLoader = true;
 
         Installer installer = new Installer();
         propertiesPath = installer.getStorageDirectory().resolve("universe.properties");
