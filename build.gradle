@@ -25,6 +25,7 @@ dependencies {
     implementation "com.formdev:flatlaf:1.1.2"
 
     implementation "net.fabricmc:fabric-installer:0.7.4"
+    implementation 'org.jetbrains:annotations:20.1.0'
 }
 
 application {

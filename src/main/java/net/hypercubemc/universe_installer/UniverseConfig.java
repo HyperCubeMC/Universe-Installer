@@ -1,5 +1,8 @@
 package net.hypercubemc.universe_installer;
 
+import org.jetbrains.annotations.Nullable;
+
+import javax.swing.*;
 import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -22,50 +25,48 @@ public class UniverseConfig {
         selectedVersion = null;
         customInstallDir = null;
         useCustomLoader = true;
-
-        Installer installer = new Installer();
-        propertiesPath = installer.getStorageDirectory().resolve("universe.properties");
+        propertiesPath = Installer.INSTANCE.getStorageDirectory().resolve("universe.properties");
         properties = new Properties();
     }
 
+    @Nullable
     public boolean getUseCustomLoader() {
-        return useCustomLoader;
+        return this.useCustomLoader;
     }
 
     public void setUseCustomLoader(boolean useCustomLoader) {
         this.useCustomLoader = useCustomLoader;
     }
-
     public String getSelectedEditionName() {
-        return selectedEditionName;
+        return this.selectedEditionName;
     }
 
     public String getSelectedEditionDisplayName() {
-        return selectedEditionDisplayName;
+        return this.selectedEditionDisplayName;
     }
 
     public String getSelectedVersion() {
-        return selectedVersion;
+        return this.selectedVersion;
     }
 
     public Path getCustomInstallDir() {
-        return customInstallDir;
+        return this.customInstallDir;
     }
 
-    public void setSelectedEditionName(String s) {
-        selectedEditionName = s;
+    public void setSelectedEditionName(String selectedEditionName) {
+        this.selectedEditionName = selectedEditionName;
     }
 
-    public void setSelectedEditionDisplayName(String s) {
-        selectedEditionDisplayName = s;
+    public void setSelectedEditionDisplayName(String selectedEditionDisplayName) {
+        this.selectedEditionDisplayName = selectedEditionDisplayName;
     }
 
-    public void setCustomInstallDir(Path p) {
-        customInstallDir = p;
+    public void setCustomInstallDir(Path customInstallDir) {
+        this.customInstallDir = customInstallDir;
     }
 
-    public void setSelectedVersion(String s) {
-        selectedVersion = s;
+    public void setSelectedVersion(String selectedVersion) {
+        this.selectedVersion = selectedVersion;
     }
 
     public void write() {
@@ -78,20 +79,23 @@ public class UniverseConfig {
         try {
             properties.store(new FileWriter(propertiesPath.toFile()), null);
         } catch (IOException e) {
-            e.printStackTrace();
+            Installer.INSTANCE.button.setText("Installation failed!");
+            System.out.println("Failed to install to mods folder!");
+            JOptionPane.showMessageDialog(Installer.INSTANCE.frame, "Failed to install to mods folder, please make sure your game is closed and try again!", "Installation Failed!", JOptionPane.ERROR_MESSAGE);
+
         }
     }
 
     public void load() {
         try {
             properties.load(new FileReader(propertiesPath.toFile()));
+            setSelectedEditionDisplayName(properties.getProperty("selected-edition-display-name"));
+            setSelectedEditionName(properties.getProperty("selected-edition-name"));
+            setSelectedVersion(properties.getProperty("selected-version"));
+            setCustomInstallDir(Paths.get(properties.getProperty("custom-install-dir")));
+            setUseCustomLoader(Boolean.parseBoolean(properties.getProperty("use-custom-loader")));
         } catch (IOException e) {
-            e.printStackTrace();
+            // Do nothing here, we dont need anything
         }
-        setSelectedEditionDisplayName(properties.getProperty("selected-edition-display-name"));
-        setSelectedEditionName(properties.getProperty("selected-edition-name"));
-        setSelectedVersion(properties.getProperty("selected-version"));
-        setCustomInstallDir(Paths.get(properties.getProperty("custom-install-dir")));
-        setUseCustomLoader(Boolean.parseBoolean(properties.getProperty("use-custom-loader")));
     }
 }
