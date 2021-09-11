@@ -289,7 +289,7 @@ public class Installer {
                         versionDropdown.setEnabled(true);
                         installDirectoryPicker.setEnabled(true);
                         useCustomLoaderCheckbox.setEnabled(true);
-                        config.write();
+                        config.save();
                     } else {
                         button.setText("Installation failed!");
                         System.out.println("Failed to install to mods folder!");
