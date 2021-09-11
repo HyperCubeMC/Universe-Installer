@@ -4,6 +4,7 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.io.*;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Properties;
@@ -69,7 +70,7 @@ public class UniverseConfig {
         this.selectedVersion = selectedVersion;
     }
 
-    public void write() {
+    public void save() {
         properties.setProperty("selected-edition-name", selectedEditionName);
         properties.setProperty("selected-edition-display-name", selectedEditionDisplayName);
         properties.setProperty("custom-install-dir", customInstallDir.toString());
@@ -87,6 +88,7 @@ public class UniverseConfig {
     }
 
     public void load() {
+        if (!Files.exists(propertiesPath)) return;
         try {
             properties.load(new FileReader(propertiesPath.toFile()));
             setSelectedEditionDisplayName(properties.getProperty("selected-edition-display-name"));
