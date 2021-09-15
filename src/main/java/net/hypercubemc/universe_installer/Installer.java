@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -54,7 +55,7 @@ public class Installer {
         FlatLightLaf.install();
 
         config.load();
-        useCustomLoader  = config.getUseCustomLoader();
+        useCustomLoader  = config.shouldUseCustomLoader();
         try {
             UIManager.setLookAndFeel(new FlatLightLaf());
         } catch (Exception e) {
@@ -111,13 +112,12 @@ public class Installer {
         String[] editionNameList = editionNames.toArray(new String[0]);
         config.setSelectedEditionName(config.getSelectedEditionName() == null ? config.getSelectedEditionName() : editionNameList[0]);
         String[] editionDisplayNameList = editionDisplayNames.toArray(new String[0]);
-        config.setSelectedEditionDisplayName(config.getSelectedEditionDisplayName() == null ? editionDisplayNameList[0] : config.getSelectedEditionDisplayName());
-
+        AtomicReference<String> selectedEditionDisplayName = new AtomicReference<>(editionDisplayNameList[0]);
         editionDropdown = new JComboBox<>(editionDisplayNameList);
         editionDropdown.addItemListener(e -> {
             if (e.getStateChange() == ItemEvent.SELECTED) {
                 config.setSelectedEditionName(editionNameList[editionDropdown.getSelectedIndex()]);
-                config.setSelectedEditionDisplayName((String) e.getItem());
+                selectedEditionDisplayName.set((String) e.getItem());
                 if (config.getCustomInstallDir() == null) {
                     installDirectoryPicker.setText(getDefaultInstallDir().toFile().getName());
                 }
@@ -215,7 +215,7 @@ public class Installer {
             try {
                 URL customLoaderVersionUrl = new URL("https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Maven/master/latest-loader");
                 String loaderVersion = useCustomLoader ? Utils.readTextFile(customLoaderVersionUrl) : Main.LOADER_META.getLatestVersion(false).getVersion();
-                VanillaLauncherIntegration.installToLauncher(getVanillaGameDir(), getInstallDir(), useCustomLoader ? config.getSelectedEditionDisplayName() : "Fabric Loader " + config.getSelectedVersion(), config.getSelectedVersion(), loaderName, loaderVersion, useCustomLoader ? VanillaLauncherIntegration.Icon.UNIVERSE : VanillaLauncherIntegration.Icon.FABRIC);
+                VanillaLauncherIntegration.installToLauncher(getVanillaGameDir(), getInstallDir(), useCustomLoader ? selectedEditionDisplayName.get() : "Fabric Loader " + config.getSelectedVersion(), config.getSelectedVersion(), loaderName, loaderVersion, useCustomLoader ? VanillaLauncherIntegration.Icon.UNIVERSE : VanillaLauncherIntegration.Icon.FABRIC);
             } catch (IOException e) {
                 System.out.println("Failed to install version and profile to vanilla launcher!");
                 e.printStackTrace();
