@@ -1,4 +1,5 @@
 package net.hypercubemc.universe_installer;
+
 import com.formdev.flatlaf.FlatLightLaf;
 import net.fabricmc.installer.Main;
 import net.fabricmc.installer.util.MetaHandler;
@@ -54,15 +55,16 @@ public class Installer {
     }
 
     public void start() {
-        FlatLightLaf.install();
+        FlatLightLaf.setup();
 
-        config.load();
         try {
             UIManager.setLookAndFeel(new FlatLightLaf());
         } catch (Exception e) {
             System.out.println("Failed to set UI theme!");
             e.printStackTrace();
         }
+
+        config.load();
 
         Main.LOADER_META = new MetaHandler(Reference.getMetaServerEndpoint("v2/versions/loader"));
         try {
