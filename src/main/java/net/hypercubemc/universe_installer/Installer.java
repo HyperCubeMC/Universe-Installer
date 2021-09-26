@@ -17,7 +17,6 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -26,6 +25,10 @@ public class Installer {
     List<InstallerMeta.Edition> EDITIONS;
     List<String> GAME_VERSIONS;
     String BASE_URL = "https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Files/master/";
+
+    String selectedEditionName;
+    String selectedEditionDisplayName;
+    String selectedVersion;
 
     JButton button;
     JComboBox<String> editionDropdown;
@@ -38,7 +41,6 @@ public class Installer {
     public static Installer INSTANCE;
     public JFrame frame = new JFrame("Universe Installer");
     boolean finishedSuccessfulInstall = false;
-    boolean useCustomLoader;
 
     public Installer() {
 
@@ -55,7 +57,6 @@ public class Installer {
         FlatLightLaf.install();
 
         config.load();
-        useCustomLoader  = config.shouldUseCustomLoader();
         try {
             UIManager.setLookAndFeel(new FlatLightLaf());
         } catch (Exception e) {
@@ -82,7 +83,7 @@ public class Installer {
             JOptionPane.showMessageDialog(null, "The installer was unable to fetch metadata from the server, please check your internet connection and try again later.", "Please check your internet connection!", JOptionPane.ERROR_MESSAGE);
             return;
         } catch (JSONException e) {
-            System.out.println("Failed to fetch installer metadata from the server!");
+            System.out.println("Failed to parse installer metadata!");
             e.printStackTrace();
             JOptionPane.showMessageDialog(null, "Installer metadata parsing failed, please contact Justsnoopy30! \nError: " + e, "Metadata Parsing Failed!", JOptionPane.ERROR_MESSAGE);
             return;
@@ -110,14 +111,14 @@ public class Installer {
             editionDisplayNames.add(edition.displayName);
         }
         String[] editionNameList = editionNames.toArray(new String[0]);
-        config.setSelectedEditionName(config.getSelectedEditionName() == null ? config.getSelectedEditionName() : editionNameList[0]);
+        selectedEditionName = editionNameList[0];
         String[] editionDisplayNameList = editionDisplayNames.toArray(new String[0]);
-        AtomicReference<String> selectedEditionDisplayName = new AtomicReference<>(editionDisplayNameList[0]);
+        selectedEditionDisplayName = editionDisplayNameList[0];
         editionDropdown = new JComboBox<>(editionDisplayNameList);
         editionDropdown.addItemListener(e -> {
             if (e.getStateChange() == ItemEvent.SELECTED) {
-                config.setSelectedEditionName(editionNameList[editionDropdown.getSelectedIndex()]);
-                selectedEditionDisplayName.set((String) e.getItem());
+                selectedEditionName = editionNameList[editionDropdown.getSelectedIndex()];
+                selectedEditionDisplayName = (String) e.getItem();
                 if (config.getCustomInstallDir() == null) {
                     installDirectoryPicker.setText(getDefaultInstallDir().toFile().getName());
                 }
@@ -137,12 +138,12 @@ public class Installer {
         List<String> gameVersions = GAME_VERSIONS.subList(0, GAME_VERSIONS.size()); // Clone the list
         Collections.reverse(gameVersions); // Reverse the order of the list so that the latest version is on top and older versions downward
         String[] gameVersionList = gameVersions.toArray(new String[0]);
-        config.setSelectedVersion(config.getSelectedVersion() == null ? gameVersionList[0] : config.getSelectedVersion());
+        selectedVersion = gameVersionList[0];
 
         versionDropdown = new JComboBox<>(gameVersionList);
         versionDropdown.addItemListener(e -> {
             if (e.getStateChange() == ItemEvent.SELECTED) {
-                config.setSelectedVersion((String) e.getItem());
+                selectedVersion = (String) e.getItem();
 
                 readyAll();
             }
@@ -156,7 +157,7 @@ public class Installer {
         JLabel installDirectoryPickerLabel = new JLabel("Select Install Directory:");
         installDirectoryPickerLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        installDirectoryPicker = new JButton(getDefaultInstallDir().toFile().getName());
+        installDirectoryPicker = new JButton(config.getCustomInstallDir() != null ? config.getCustomInstallDir().toFile().getName() : getDefaultInstallDir().toFile().getName());
         installDirectoryPicker.addActionListener(e -> {
             JFileChooser fileChooser = new JFileChooser();
             fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
@@ -164,7 +165,8 @@ public class Installer {
             int option = fileChooser.showOpenDialog(frame);
             if (option == JFileChooser.APPROVE_OPTION) {
                 File file = fileChooser.getSelectedFile();
-                config.setCustomInstallDir(file.toPath());
+                if (file.toPath().equals(getDefaultInstallDir())) config.setCustomInstallDir(null);
+                else config.setCustomInstallDir(file.toPath());
                 installDirectoryPicker.setText(file.getName());
 
                 readyAll();
@@ -174,11 +176,11 @@ public class Installer {
         installDirectoryPanel.add(installDirectoryPickerLabel);
         installDirectoryPanel.add(installDirectoryPicker);
 
-        useCustomLoaderCheckbox = new JCheckBox("Use Custom Loader (Recommended)", true);
+        useCustomLoaderCheckbox = new JCheckBox("Use Custom Loader (Recommended)", config.shouldUseCustomLoader());
         useCustomLoaderCheckbox.setHorizontalTextPosition(SwingConstants.LEFT);
         useCustomLoaderCheckbox.setAlignmentX(Component.CENTER_ALIGNMENT);
         useCustomLoaderCheckbox.addActionListener(e -> {
-            useCustomLoader = useCustomLoaderCheckbox.isSelected();
+            config.setUseCustomLoader(useCustomLoaderCheckbox.isSelected());
             readyAll();
         });
 
@@ -196,10 +198,12 @@ public class Installer {
 
         button = new JButton("Install");
         button.addActionListener(action -> {
-            if (!EDITIONS.stream().filter(edition -> edition.name.equals(config.getSelectedEditionName())).findFirst().get().compatibleVersions.contains(config.getSelectedVersion())) {
+            if (!EDITIONS.stream().filter(edition -> edition.name.equals(selectedEditionName)).findFirst().get().compatibleVersions.contains(selectedVersion)) {
                 JOptionPane.showMessageDialog(frame, "The selected edition is not compatible with the chosen game version.", "Incompatible Edition", JOptionPane.ERROR_MESSAGE);
                 return;
             }
+
+            boolean useCustomLoader = config.shouldUseCustomLoader();
 
             // Use Universe's custom fabric loader if "use custom loader" is set
             if (useCustomLoader) {
@@ -215,7 +219,7 @@ public class Installer {
             try {
                 URL customLoaderVersionUrl = new URL("https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Maven/master/latest-loader");
                 String loaderVersion = useCustomLoader ? Utils.readTextFile(customLoaderVersionUrl) : Main.LOADER_META.getLatestVersion(false).getVersion();
-                VanillaLauncherIntegration.installToLauncher(getVanillaGameDir(), getInstallDir(), useCustomLoader ? selectedEditionDisplayName.get() : "Fabric Loader " + config.getSelectedVersion(), config.getSelectedVersion(), loaderName, loaderVersion, useCustomLoader ? VanillaLauncherIntegration.Icon.UNIVERSE : VanillaLauncherIntegration.Icon.FABRIC);
+                VanillaLauncherIntegration.installToLauncher(getVanillaGameDir(), getInstallDir(), useCustomLoader ? selectedEditionDisplayName : "Fabric Loader " + selectedVersion, selectedVersion, loaderName, loaderVersion, useCustomLoader ? VanillaLauncherIntegration.Icon.UNIVERSE : VanillaLauncherIntegration.Icon.FABRIC);
             } catch (IOException e) {
                 System.out.println("Failed to install version and profile to vanilla launcher!");
                 e.printStackTrace();
@@ -232,9 +236,9 @@ public class Installer {
             progressBar.setValue(0);
             setInteractionEnabled(false);
 
-            String zipName = config.getSelectedEditionName() + ".zip";
+            String zipName = selectedEditionName + ".zip";
 
-            String downloadURL = BASE_URL + config.getSelectedVersion() + "/" + zipName;
+            String downloadURL = BASE_URL + selectedVersion + "/" + zipName;
 
             File saveLocation = getStorageDirectory().resolve(zipName).toFile();
 
@@ -361,7 +365,7 @@ public class Installer {
             while (entry != null) {
                 String entryName = entry.getName();
 
-                if (useCustomLoader && entryName.startsWith("mods/")) {
+                if (config.shouldUseCustomLoader() && entryName.startsWith("mods/")) {
                     entryName = entryName.replace("mods/", "universe-reserved/");
                 }
 
@@ -457,5 +461,4 @@ public class Installer {
         progressBar.setValue(0);
         setInteractionEnabled(true);
     }
-
 }

@@ -3,13 +3,12 @@ package net.hypercubemc.universe_installer;
 import javax.swing.*;
 import java.io.*;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Properties;
 
 public class UniverseConfig {
-    private String selectedEditionName;
-    private String selectedVersion;
     private Path customInstallDir;
     private boolean useCustomLoader;
 
@@ -18,8 +17,6 @@ public class UniverseConfig {
 
 
     public UniverseConfig() {
-        selectedEditionName = null;
-        selectedVersion = null;
         customInstallDir = null;
         useCustomLoader = true;
         propertiesPath = Installer.INSTANCE.getStorageDirectory().resolve("universe.properties");
@@ -34,46 +31,27 @@ public class UniverseConfig {
         this.useCustomLoader = useCustomLoader;
     }
 
-    public String getSelectedEditionName() {
-        return this.selectedEditionName;
-    }
-
-
-    public String getSelectedVersion() {
-        return this.selectedVersion;
-    }
-
     public Path getCustomInstallDir() {
         return this.customInstallDir;
     }
-
-    public void setSelectedEditionName(String selectedEditionName) {
-        this.selectedEditionName = selectedEditionName;
-    }
-
 
     public void setCustomInstallDir(Path customInstallDir) {
         this.customInstallDir = customInstallDir;
     }
 
-    public void setSelectedVersion(String selectedVersion) {
-        this.selectedVersion = selectedVersion;
-    }
-
     public void save() {
-        properties.setProperty("selected-edition-name", selectedEditionName);
-        properties.setProperty("custom-install-dir", customInstallDir.toString());
-        properties.setProperty("selected-version", selectedVersion);
-        properties.setProperty("use-custom-loader", String.valueOf(useCustomLoader));
+        if (customInstallDir != null) properties.setProperty("custom-install-dir", customInstallDir.toString());
+        else properties.remove("custom-install-dir");
+        if (!useCustomLoader) properties.setProperty("use-custom-loader", String.valueOf(false));
+        else properties.remove("use-custom-loader");
 
         try {
             properties.store(new FileWriter(propertiesPath.toFile()), null);
         } catch (IOException e) {
             Installer.INSTANCE.button.setText("Config saving failed!");
+            System.out.println("Failed to save config!");
             e.printStackTrace();
-            System.out.println("Failed to save configs folder!");
-            JOptionPane.showMessageDialog(Installer.INSTANCE.frame, "Failed to save configs!", "Configs Not Saved!", JOptionPane.ERROR_MESSAGE);
-
+            JOptionPane.showMessageDialog(Installer.INSTANCE.frame, "Failed to save config! \nError: " + e.getMessage(), "Config not saved!", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -81,12 +59,21 @@ public class UniverseConfig {
         if (!Files.exists(propertiesPath)) return;
         try {
             properties.load(new FileReader(propertiesPath.toFile()));
-            setSelectedEditionName(properties.getProperty("selected-edition-name"));
-            setSelectedVersion(properties.getProperty("selected-version"));
-            setCustomInstallDir(Paths.get(properties.getProperty("custom-install-dir")));
-            setUseCustomLoader(Boolean.parseBoolean(properties.getProperty("use-custom-loader")));
         } catch (IOException e) {
-            // Do nothing here, we dont need anything
+            System.out.println("Failed to read config file!");
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(Installer.INSTANCE.frame, "Failed to read config file! \nError: " + e.getMessage(), "Failed to read config!", JOptionPane.ERROR_MESSAGE);
         }
+
+        try {
+            if (properties.getProperty("custom-install-dir") != null) setCustomInstallDir(Paths.get(properties.getProperty("custom-install-dir")));
+        } catch (InvalidPathException e) {
+            System.out.println("Invalid custom install directory in config file! Config value: " + properties.getProperty("custom-install-dir"));
+            System.out.println("Resetting to default...");
+            setCustomInstallDir(null);
+            JOptionPane.showMessageDialog(Installer.INSTANCE.frame, "Invalid custom install directory in config file! \nConfig value: " + properties.getProperty("custom-install-dir") + "\nThe install directory has been reset to default.", "Invalid install directory config!", JOptionPane.ERROR_MESSAGE);
+        }
+
+        if (properties.getProperty("use-custom-loader") != null) setUseCustomLoader(Boolean.parseBoolean(properties.getProperty("use-custom-loader")));
     }
 }
