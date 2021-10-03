@@ -25,7 +25,8 @@ public class Installer {
     InstallerMeta INSTALLER_META;
     List<InstallerMeta.Edition> EDITIONS;
     List<String> GAME_VERSIONS;
-    String BASE_URL = "https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Files/master/";
+    String META_BASE_URL = "https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Files/master/";
+    String ZIP_BASE_URL = "https://media.githubusercontent.com/media/HyperCubeMC/Universe-Installer-Files/master/";
 
     String selectedEditionName;
     String selectedEditionDisplayName;
@@ -76,7 +77,7 @@ public class Installer {
             return;
         }
 
-        INSTALLER_META = new InstallerMeta(BASE_URL + "meta.json");
+        INSTALLER_META = new InstallerMeta(META_BASE_URL + "meta.json");
         try {
             INSTALLER_META.load();
         } catch (IOException e) {
@@ -240,7 +241,7 @@ public class Installer {
 
             String zipName = selectedEditionName + ".zip";
 
-            String downloadURL = BASE_URL + selectedVersion + "/" + zipName;
+            String downloadURL = ZIP_BASE_URL + selectedVersion + "/" + zipName;
 
             File saveLocation = getStorageDirectory().resolve(zipName).toFile();
 
