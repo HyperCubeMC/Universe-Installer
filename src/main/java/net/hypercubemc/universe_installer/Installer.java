@@ -6,27 +6,35 @@ import net.fabricmc.installer.util.MetaHandler;
 import net.fabricmc.installer.util.Reference;
 import net.fabricmc.installer.util.Utils;
 import net.hypercubemc.universe_installer.layouts.VerticalLayout;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.lib.ProgressMonitor;
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+import org.eclipse.jgit.transport.Depth;
 import org.json.JSONException;
 
-import javax.net.ssl.HttpsURLConnection;
 import javax.swing.*;
+import javax.swing.event.HyperlinkEvent;
 import java.awt.*;
 import java.awt.event.ItemEvent;
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 public class Installer {
     InstallerMeta INSTALLER_META;
     List<InstallerMeta.Edition> EDITIONS;
     List<String> GAME_VERSIONS;
-    String META_BASE_URL = "https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Files/master/";
-    String ZIP_BASE_URL = "https://media.githubusercontent.com/media/HyperCubeMC/Universe-Installer-Files/master/";
+    String META_URL = "https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Files/master/meta.json";
+    String REPO_URL = "https://github.com/HyperCubeMC/Universe-Installer-Files.git";
 
     String selectedEditionName;
     String selectedEditionDisplayName;
@@ -65,6 +73,31 @@ public class Installer {
             e.printStackTrace();
         }
 
+        // JGit now depends on Java 11+
+        if (Float.parseFloat(System.getProperty("java.specification.version")) < 11) {
+            JLabel label = new JLabel();
+            Font font = label.getFont();
+
+            String style = "font-family:" + font.getFamily() + ";" + "font-weight:" + (font.isBold() ? "bold" : "normal") + ";" +
+                    "font-size:" + font.getSize() + "pt;";
+
+            JEditorPane message = new JEditorPane("text/html", "<html><body style=\"" + style + "\">"
+                    + "This program requires Java 11 or above to run. Please install an updated Java release from <a href=\"https://adoptium.net/\">https://adoptium.net</a>"
+                    + "</body></html>");
+
+            message.addHyperlinkListener(e -> {
+                if (e.getEventType().equals(HyperlinkEvent.EventType.ACTIVATED)) {
+                    try {
+                        Desktop.getDesktop().browse(e.getURL().toURI());
+                    } catch (IOException | URISyntaxException ignored) {}
+                }
+            });
+            message.setEditable(false);
+            message.setBackground(label.getBackground());
+            JOptionPane.showMessageDialog(null, message, "Outdated Java", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
         config.load();
 
         Main.LOADER_META = new MetaHandler(Reference.getMetaServerEndpoint("v2/versions/loader"));
@@ -77,7 +110,7 @@ public class Installer {
             return;
         }
 
-        INSTALLER_META = new InstallerMeta(META_BASE_URL + "meta.json");
+        INSTALLER_META = new InstallerMeta(META_URL);
         try {
             INSTALLER_META.load();
         } catch (IOException e) {
@@ -239,13 +272,7 @@ public class Installer {
             progressBar.setValue(0);
             setInteractionEnabled(false);
 
-            String zipName = selectedEditionName + ".zip";
-
-            String downloadURL = ZIP_BASE_URL + selectedVersion + "/" + zipName;
-
-            File saveLocation = getStorageDirectory().resolve(zipName).toFile();
-
-            final Downloader downloader = new Downloader(downloadURL, saveLocation);
+            Downloader downloader = new Downloader(REPO_URL, getStorageDirectory().resolve("repo"));
             downloader.addPropertyChangeListener(event -> {
                 if ("progress".equals(event.getPropertyName())) {
                     progressBar.setValue((Integer) event.getNewValue());
@@ -288,7 +315,7 @@ public class Installer {
                     if (useCustomLoader) deleteDirectory(modsFolder);
                     if (!modsFolder.exists() || !modsFolder.isDirectory()) modsFolder.mkdir();
 
-                    boolean installSuccess = installFromZip(saveLocation);
+                    boolean installSuccess = installFromPack(getStorageDirectory().resolve("repo").resolve(selectedVersion).resolve(selectedEditionName).toFile());
                     if (installSuccess) {
                         button.setText("Installation succeeded!");
                         finishedSuccessfulInstall = true;
@@ -320,81 +347,117 @@ public class Installer {
 
     // Works up to 2GB because of long limitation
     class Downloader extends SwingWorker<Void, Void> {
-        private final String url;
-        private final File file;
+        private final String repo;
+        private final Path path;
 
-        public Downloader(String url, File file) {
-            this.url = url;
-            this.file = file;
+        public Downloader(String repo, Path path) {
+            this.repo = repo;
+            this.path = path;
         }
 
         @Override
         protected Void doInBackground() throws Exception {
-            URL url = new URL(this.url);
-            HttpsURLConnection connection = (HttpsURLConnection) url
-                    .openConnection();
-            long filesize = connection.getContentLengthLong();
-            if (filesize == -1) {
-                throw new Exception("Content length must not be -1 (unknown)!");
-            }
-            long totalDataRead = 0;
-            try (java.io.BufferedInputStream in = new java.io.BufferedInputStream(
-                    connection.getInputStream())) {
-                java.io.FileOutputStream fos = new java.io.FileOutputStream(file);
-                try (java.io.BufferedOutputStream bout = new BufferedOutputStream(
-                        fos, 1024)) {
-                    byte[] data = new byte[1024];
-                    int i;
-                    while ((i = in.read(data, 0, 1024)) >= 0) {
-                        totalDataRead = totalDataRead + i;
-                        bout.write(data, 0, i);
-                        int percent = (int) ((totalDataRead * 100) / filesize);
-                        setProgress(percent);
-                    }
+            ProgressMonitor progressMonitor = new ProgressMonitor() {
+                int totalWork = 0;
+                int workDone = 0;
+
+                boolean receivingCompleted = false;
+
+                @Override
+                public void start(int totalTasks) {
+                    System.out.println("Starting work on tasks");
                 }
+
+                @Override
+                public void beginTask(String title, int totalWork) {
+                    System.out.println("Start " + title + ": " + totalWork);
+                    // This is the first task endTask is called for, and the only one needed for download progress
+                    if (title.startsWith("Receiving")) this.totalWork = totalWork;
+                    workDone = 0;
+                }
+
+                @Override
+                public void update(int completed) {
+                    if (receivingCompleted) return;
+
+                    workDone += completed;
+                    if (workDone < totalWork) setProgress((int) ((double) workDone * 100 / totalWork));
+                }
+
+                @Override
+                public void endTask() {
+                    workDone = 0;
+                    if (!receivingCompleted) receivingCompleted = true;
+                    System.out.println("Done");
+                }
+
+                @Override
+                public boolean isCancelled() {
+                    return false;
+                }
+            };
+
+            if (repositoryExists(path.toFile())) {
+                Git.open(path.toFile()).pull()
+                        .setProgressMonitor(progressMonitor)
+                        .call();
+            } else {
+                if (path.toFile().exists()) deleteDirectory(path.toFile());
+
+                Git.cloneRepository()
+                        .setURI(repo)
+                        .setDirectory(path.toFile())
+                        .setProgressMonitor(progressMonitor)
+                        .setDepth(new Depth(1))
+                        .call();
             }
+            setProgress(100);
+
             return null;
         }
     }
 
-    public boolean installFromZip(File zip) {
+    public boolean installFromPack(File pack) {
         try {
-            int BUFFER_SIZE = 2048; // Buffer Size
+            File[] files = pack.listFiles();
 
-            ZipInputStream zipIn = new ZipInputStream(new FileInputStream(zip));
-
-            ZipEntry entry = zipIn.getNextEntry();
-            // iterates over entries in the zip file
-            while (entry != null) {
-                String entryName = entry.getName();
-
-                if (config.shouldUseCustomLoader() && entryName.startsWith("mods/")) {
-                    entryName = entryName.replace("mods/", "universe-reserved/");
-                }
-
-                File filePath = getInstallDir().resolve(entryName).toFile();
-                if (!entry.isDirectory()) {
-                    // if the entry is a file, extracts it
-                    BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(filePath));
-                    byte[] bytesIn = new byte[BUFFER_SIZE];
-                    int read = 0;
-                    while ((read = zipIn.read(bytesIn)) != -1) {
-                        bos.write(bytesIn, 0, read);
-                    }
-                    bos.close();
-                } else {
-                    // if the entry is a directory, make the directory
-                    filePath.mkdir();
-                }
-                zipIn.closeEntry();
-                entry = zipIn.getNextEntry();
+            if (files == null) {
+                return false;
             }
-            zipIn.close();
+
+            installFiles(files);
             return true;
         } catch (IOException e) {
-            e.getCause().printStackTrace();
+            e.printStackTrace();
             return false;
         }
+    }
+
+    private void installFiles(File[] files) throws IOException {
+        for (File entry : files) {
+            String entryPath = getStorageDirectory().resolve("repo").resolve(selectedVersion).resolve(selectedEditionName).relativize(entry.toPath()).toString();
+
+            if (config.shouldUseCustomLoader() && entryPath.startsWith("mods" + File.separator)) {
+                entryPath = entryPath.replace("mods" + File.separator, "universe-reserved" + File.separator);
+            }
+
+            File filePath = getInstallDir().resolve(entryPath).toFile();
+            if (!entry.isDirectory()) {
+                Files.copy(entry.toPath(), filePath.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            } else {
+                // if the entry is a directory, make the directory
+                filePath.mkdir();
+                File[] subFiles = entry.listFiles();
+                if (subFiles != null) installFiles(subFiles);
+            }
+        }
+    }
+
+    public boolean repositoryExists(File directory) {
+        FileRepositoryBuilder repositoryBuilder = new FileRepositoryBuilder();
+        repositoryBuilder.findGitDir(directory);
+
+        return repositoryBuilder.getGitDir() != null;
     }
 
     public Path getStorageDirectory() {

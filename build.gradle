@@ -4,8 +4,8 @@ plugins {
     id "de.undercouch.download" version "4.1.1"
 }
 
-sourceCompatibility = JavaVersion.VERSION_1_8
-targetCompatibility = JavaVersion.VERSION_1_8
+sourceCompatibility = JavaVersion.VERSION_11
+targetCompatibility = JavaVersion.VERSION_11
 
 archivesBaseName = project.archives_base_name
 version = project.version
@@ -16,6 +16,10 @@ repositories {
         url "https://maven.fabricmc.net"
     }
 
+    flatDir {
+        dir "deps"
+    }
+
     mavenCentral()
     mavenLocal()
 }
@@ -23,6 +27,12 @@ repositories {
 dependencies {
     implementation "org.json:json:20210307"
     implementation "com.formdev:flatlaf:1.6"
+    // Custom jgit with support for shallow cloning by me
+    implementation name: "org.eclipse.jgit-6.0.0-SNAPSHOT"
+    // Manual dependencies for custom built jgit
+    implementation 'org.slf4j:slf4j-api:1.7.32'
+    implementation 'org.slf4j:slf4j-log4j12:1.7.32'
+    implementation "com.jcraft:jsch:0.1.55"
 
     implementation "net.fabricmc:fabric-installer:0.7.4"
 }
@@ -62,10 +72,6 @@ task nativeExe(dependsOn: [downloadBootstrap], type: FileOutput) {
 build.dependsOn nativeExe
 
 jar {
-//    into 'mods', {
-//        from 'mods'
-//    }
-
     manifest {
         attributes("Main-Class": application.mainClass)
     }
@@ -73,6 +79,7 @@ jar {
     from "LICENSE"
 
     from (configurations.compileClasspath.filter{ it.exists() }.collect { it.isDirectory() ? it : zipTree(it) }) {
+        exclude 'META-INF/LICENSE'
         exclude 'META-INF/*.SF'
         exclude 'META-INF/*.DSA'
         exclude 'META-INF/*.RSA'

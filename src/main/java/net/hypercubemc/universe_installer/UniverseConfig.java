@@ -19,7 +19,7 @@ public class UniverseConfig {
     public UniverseConfig() {
         customInstallDir = null;
         useCustomLoader = true;
-        propertiesPath = Installer.INSTANCE.getStorageDirectory().resolve("universe.properties");
+        propertiesPath = Installer.INSTANCE.getStorageDirectory().resolve("config").resolve("universe.properties");
         properties = new Properties();
     }
 
@@ -40,6 +40,9 @@ public class UniverseConfig {
     }
 
     public void save() {
+        File configDir = propertiesPath.getParent().toFile();
+        if (!configDir.exists() || !configDir.isDirectory()) configDir.mkdir();
+
         if (customInstallDir != null) properties.setProperty("custom-install-dir", customInstallDir.toString());
         else properties.remove("custom-install-dir");
         if (!useCustomLoader) properties.setProperty("use-custom-loader", String.valueOf(false));
