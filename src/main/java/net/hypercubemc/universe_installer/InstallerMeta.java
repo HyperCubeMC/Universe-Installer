@@ -52,15 +52,18 @@ public class InstallerMeta {
     public static class Edition {
         String name;
         String displayName;
+        String defaultInstallDir;
         List<String> compatibleVersions = new ArrayList<>();
 
         public Edition(JSONObject jsonObject) {
             this.name = jsonObject.getString("name");
             this.displayName = jsonObject.getString("display_name");
+            this.defaultInstallDir = jsonObject.getString("default_install_dir");
 
             for (int i = 0; i < jsonObject.getJSONArray("compatible_versions").toList().size(); i++){
                 compatibleVersions.add(jsonObject.getJSONArray("compatible_versions").toList().get(i).toString());
             }
+
         }
     }
 }

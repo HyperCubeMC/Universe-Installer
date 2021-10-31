@@ -63,6 +63,7 @@ public class VanillaLauncherIntegration {
         // If the profile already exists, use it instead of making a new one so that user's settings are kept (e.g icon)
         JSONObject profile = profiles.has(foundProfileName) ? profiles.getJSONObject(foundProfileName) : createProfile(profileName, instanceDir, versionId, icon);
         profile.put("name", profileName);
+        profile.put("gameDir", instanceDir.toString());
         profile.put("lastUsed", Utils.ISO_8601.format(new Date())); // Update timestamp to bring to top of profile list
         profile.put("lastVersionId", versionId);
 

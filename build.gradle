@@ -26,7 +26,7 @@ repositories {
 
 dependencies {
     implementation "org.json:json:20210307"
-    implementation "com.formdev:flatlaf:1.6"
+    implementation 'com.formdev:flatlaf:1.6.1'
     // Custom jgit with support for shallow cloning by me
     implementation name: "org.eclipse.jgit-6.0.0-SNAPSHOT"
     // Manual dependencies for custom built jgit
