@@ -204,10 +204,11 @@ public class Installer {
         installDirectoryPanel.add(installDirectoryPicker);
 
         useCustomLoaderCheckbox = new JCheckBox("Use Custom Loader (Recommended)", config.shouldUseCustomLoader());
+        useCustomLoaderCheckbox.setToolTipText("If you do not know what this does, leave it checked.");
         useCustomLoaderCheckbox.setHorizontalTextPosition(SwingConstants.LEFT);
         useCustomLoaderCheckbox.setAlignmentX(Component.CENTER_ALIGNMENT);
         useCustomLoaderCheckbox.addActionListener(e -> {
-            config.setUseCustomLoader(useCustomLoaderCheckbox.isSelected());
+        config.setUseCustomLoader(useCustomLoaderCheckbox.isSelected());
             readyAll();
         });
 
@@ -246,7 +247,11 @@ public class Installer {
             try {
                 URL customLoaderVersionUrl = new URL("https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Maven/master/latest-loader");
                 String loaderVersion = useCustomLoader ? Utils.readTextFile(customLoaderVersionUrl) : Main.LOADER_META.getLatestVersion(false).getVersion();
-                VanillaLauncherIntegration.installToLauncher(getVanillaGameDir(), getInstallDir(), useCustomLoader ? selectedEdition.displayName : "Fabric Loader " + selectedVersion, selectedVersion, loaderName, loaderVersion, useCustomLoader ? VanillaLauncherIntegration.Icon.UNIVERSE : VanillaLauncherIntegration.Icon.FABRIC);
+                boolean success = VanillaLauncherIntegration.installToLauncher(getVanillaGameDir(), getInstallDir(), useCustomLoader ? selectedEdition.displayName : "Fabric Loader " + selectedVersion, selectedVersion, loaderName, loaderVersion, useCustomLoader ? VanillaLauncherIntegration.Icon.UNIVERSE : VanillaLauncherIntegration.Icon.FABRIC);
+                if (!success) {
+                    System.out.println("Failed to install to launcher, canceling!");
+                    return;
+                }
             } catch (IOException e) {
                 System.out.println("Failed to install version and profile to vanilla launcher!");
                 e.printStackTrace();
