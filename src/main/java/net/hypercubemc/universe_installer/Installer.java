@@ -1,6 +1,7 @@
 package net.hypercubemc.universe_installer;
 
 import com.formdev.flatlaf.FlatLightLaf;
+import com.formdev.flatlaf.FlatDarkLaf;
 import net.fabricmc.installer.Main;
 import net.fabricmc.installer.util.MetaHandler;
 import net.fabricmc.installer.util.Reference;
@@ -48,7 +49,7 @@ public class Installer {
 
     UniverseConfig config;
     public static Installer INSTANCE;
-    public JFrame frame = new JFrame("Universe Installer");
+    public JFrame frame;
     boolean finishedSuccessfulInstall = false;
 
     public Installer() {
@@ -63,13 +64,12 @@ public class Installer {
     }
 
     public void start() {
-        FlatLightLaf.setup();
-
-        try {
-            UIManager.setLookAndFeel(new FlatLightLaf());
-        } catch (Exception e) {
-            System.out.println("Failed to set UI theme!");
-            e.printStackTrace();
+        boolean dark = DarkModeDetector.isDarkMode();
+        System.setProperty("apple.awt.application.appearance", "system");
+        if (dark) {
+            FlatDarkLaf.setup();
+        } else {
+            FlatLightLaf.setup();
         }
 
         // JGit now depends on Java 11+
@@ -96,8 +96,6 @@ public class Installer {
             JOptionPane.showMessageDialog(null, message, "Outdated Java", JOptionPane.ERROR_MESSAGE);
             return;
         }
-
-        config.load();
 
         Main.LOADER_META = new MetaHandler(Reference.getMetaServerEndpoint("v2/versions/loader"));
         try {
@@ -126,11 +124,15 @@ public class Installer {
 
         GAME_VERSIONS = INSTALLER_META.getGameVersions();
         EDITIONS = INSTALLER_META.getEditions();
+
+        frame = new JFrame("Universe Installer");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout());
         frame.setSize(350,350);
         frame.setLocationRelativeTo(null); // Centers the window
         frame.setIconImage(new ImageIcon(Objects.requireNonNull(Utils.class.getClassLoader().getResource("universe_profile_icon.png"))).getImage()); // Credit to Pixxi#0001 for the icon
+
+        config.load();
 
         JPanel topPanel = new JPanel(new VerticalLayout());
 
@@ -232,15 +234,6 @@ public class Installer {
             }
 
             boolean useCustomLoader = config.shouldUseCustomLoader();
-
-            // Use Universe's custom fabric loader if "use custom loader" is set
-            if (useCustomLoader) {
-                Reference.metaServerUrl = "https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Maven/master/";
-                System.out.println("Using custom loader");
-            } else {
-                Reference.metaServerUrl = "https://meta.fabricmc.net/";
-                System.out.println("Using fabric loader");
-            }
 
             String loaderName = useCustomLoader ? "universe-fabric-loader" : "fabric-loader";
 
