@@ -61,7 +61,7 @@ public class VanillaLauncherIntegration {
             String name = entry.asJsonMap().get("name").asString();
             if (name.startsWith("net.fabricmc:fabric-loader:")) {
                 entry.asJsonMap().put("name", factory.string("net.hypercubemc:universe-loader:" + name.substring(id.length())));
-                entry.asJsonMap().put("url", factory.string("https://github.com/HyperCubeMC/Universe-Installer-Maven/master/"));
+                entry.asJsonMap().put("url", factory.string(Installer.INSTANCE.MAVEN_URL));
             }
         }
     }

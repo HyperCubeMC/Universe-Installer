@@ -34,6 +34,7 @@ public class Installer {
     InstallerMeta INSTALLER_META;
     List<InstallerMeta.Edition> EDITIONS;
     List<String> GAME_VERSIONS;
+    String MAVEN_URL = "https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Maven/master/";
     String META_URL = "https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Files/master/meta.json";
     String REPO_URL = "https://github.com/HyperCubeMC/Universe-Installer-Files.git";
 
