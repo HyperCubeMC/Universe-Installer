@@ -1,7 +1,7 @@
 package net.hypercubemc.universe_installer;
 
-import com.formdev.flatlaf.FlatLightLaf;
 import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatLightLaf;
 import net.fabricmc.installer.Main;
 import net.fabricmc.installer.util.MetaHandler;
 import net.fabricmc.installer.util.Reference;
@@ -239,9 +239,9 @@ public class Installer {
             String loaderName = useCustomLoader ? "universe-fabric-loader" : "fabric-loader";
 
             try {
-                URL customLoaderVersionUrl = new URL("https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Maven/master/latest-loader");
+                URL customLoaderVersionUrl = new URL(MAVEN_URL + "latest-loader");
                 String loaderVersion = useCustomLoader ? Utils.readTextFile(customLoaderVersionUrl) : Main.LOADER_META.getLatestVersion(false).getVersion();
-                boolean success = VanillaLauncherIntegration.installToLauncher(getVanillaGameDir(), getInstallDir(), useCustomLoader ? selectedEdition.displayName : "Fabric Loader " + selectedVersion, selectedVersion, loaderName, loaderVersion, useCustomLoader ? VanillaLauncherIntegration.Icon.UNIVERSE : VanillaLauncherIntegration.Icon.FABRIC);
+                boolean success = VanillaLauncherIntegration.installToLauncher(getVanillaGameDir(), getInstallDir(), useCustomLoader ? selectedEdition.displayName + " for " + selectedVersion : "Fabric Loader " + selectedVersion, selectedVersion, loaderName, loaderVersion, useCustomLoader ? VanillaLauncherIntegration.Icon.UNIVERSE : VanillaLauncherIntegration.Icon.FABRIC);
                 if (!success) {
                     System.out.println("Failed to install to launcher, canceling!");
                     return;
@@ -271,10 +271,10 @@ public class Installer {
                         downloader.get();
                     } catch (InterruptedException | ExecutionException e) {
                         System.out.println("Failed to download zip!");
-                        e.getCause().printStackTrace();
+                        e.printStackTrace();
 
                         String msg = String.format("An error occurred while attempting to download the required files, please check your internet connection and try again! \nError: %s",
-                                e.getCause().toString());
+                                e);
                         JOptionPane.showMessageDialog(frame,
                                 msg, "Download Failed!", JOptionPane.ERROR_MESSAGE, null);
                         readyAll();
@@ -287,7 +287,7 @@ public class Installer {
                     File installDir = getInstallDir().toFile();
                     if (!installDir.exists() || !installDir.isDirectory()) installDir.mkdirs();
 
-                    File modsFolder = getInstallDir().resolve(useCustomLoader ? "universe-reserved" : "mods").toFile();
+                    File modsFolder = useCustomLoader ? getInstallDir().resolve("universe-reserved").resolve(selectedVersion).toFile() : getInstallDir().resolve("mods").toFile();
                     File[] modsFolderContents = modsFolder.listFiles();
                     if (modsFolderContents != null) {
                         boolean isEmpty = modsFolderContents.length == 0;
@@ -303,7 +303,7 @@ public class Installer {
                     }
 
                     if (useCustomLoader) deleteDirectory(modsFolder);
-                    if (!modsFolder.exists() || !modsFolder.isDirectory()) modsFolder.mkdir();
+                    if (!modsFolder.exists() || !modsFolder.isDirectory()) modsFolder.mkdirs();
 
                     boolean installSuccess = installFromPack(getStorageDirectory().resolve("repo").resolve(selectedVersion).resolve(selectedEdition.name).toFile());
                     if (installSuccess) {
@@ -428,7 +428,7 @@ public class Installer {
             String entryPath = getStorageDirectory().resolve("repo").resolve(selectedVersion).resolve(selectedEdition.name).relativize(entry.toPath()).toString();
 
             if (config.shouldUseCustomLoader() && entryPath.startsWith("mods" + File.separator)) {
-                entryPath = entryPath.replace("mods" + File.separator, "universe-reserved" + File.separator);
+                entryPath = entryPath.replace("mods" + File.separator, "universe-reserved" + File.separator + selectedVersion + File.separator);
             }
 
             File filePath = getInstallDir().resolve(entryPath).toFile();

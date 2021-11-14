@@ -30,7 +30,7 @@ public class VanillaLauncherIntegration {
     }
 
     public static void installVersion(Path mcDir, String gameVersion, String loaderName, String loaderVersion, ProfileInstaller.LauncherType launcherType) throws IOException {
-        System.out.println("Installing " + gameVersion + " with fabric " + loaderVersion + " to launcher " + launcherType);
+        System.out.println("Installing " + gameVersion + " with loader " + loaderVersion + " to launcher " + launcherType);
         String versionId = String.format("%s-%s-%s", loaderName, loaderVersion, gameVersion);
         Path versionsDir = mcDir.resolve("versions");
         Path profileDir = versionsDir.resolve(versionId);
@@ -49,7 +49,7 @@ public class VanillaLauncherIntegration {
         }
         Utils.writeToFile(profileJsonPath, profileJson.toString());
     }
-    
+
     private static void editVersionJson(Json profileJson) {
         Json.Factory factory = Json.factory();
         Map<String, Json> json = profileJson.asJsonMap();
