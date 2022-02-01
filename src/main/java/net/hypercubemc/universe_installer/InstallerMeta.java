@@ -54,6 +54,7 @@ public class InstallerMeta {
         String displayName;
         String defaultInstallDir;
         List<String> compatibleVersions = new ArrayList<>();
+        List<String> clearDirectories = new ArrayList<>();
 
         public Edition(JSONObject jsonObject) {
             this.name = jsonObject.getString("name");
@@ -64,6 +65,9 @@ public class InstallerMeta {
                 compatibleVersions.add(jsonObject.getJSONArray("compatible_versions").toList().get(i).toString());
             }
 
+            for (int i = 0; i < jsonObject.getJSONArray("clear_directories").toList().size(); i++){
+                clearDirectories.add(jsonObject.getJSONArray("clear_directories").toList().get(i).toString());
+            }
         }
     }
 }

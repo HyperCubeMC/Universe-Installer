@@ -24,6 +24,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -415,6 +416,7 @@ public class Installer {
                 return false;
             }
 
+            deleteDirectories(selectedEdition.clearDirectories);
             installFiles(files);
             return true;
         } catch (IOException e) {
@@ -440,6 +442,12 @@ public class Installer {
                 File[] subFiles = entry.listFiles();
                 if (subFiles != null) installFiles(subFiles);
             }
+        }
+    }
+
+    private void deleteDirectories(List<String> pathNames) {
+        for (String pathName : pathNames) {
+            deleteDirectory(getInstallDir().resolve(pathName.replace("/", File.separator)).toFile());
         }
     }
 
