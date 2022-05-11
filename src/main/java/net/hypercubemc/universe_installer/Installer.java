@@ -24,9 +24,8 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.Collections;
+import java.util.*;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Matcher;
 
@@ -305,7 +304,12 @@ public class Installer {
                     if (useCustomLoader) deleteDirectory(modsFolder);
                     if (!modsFolder.exists() || !modsFolder.isDirectory()) modsFolder.mkdirs();
 
-                    boolean installSuccess = installFromPack(getStorageDirectory().resolve("repo").resolve(selectedVersion).resolve(selectedEdition.name).toFile());
+                    List<InstallerMeta.Edition> inheritanceList = createInheritanceList(selectedEdition, new ArrayList<>());
+                    List<File> inheritedPackList = new ArrayList<>();
+                    for (InstallerMeta.Edition edition : inheritanceList) {
+                        inheritedPackList.add(getStorageDirectory().resolve("repo").resolve(selectedVersion).resolve(edition.name).toFile());
+                    }
+                    boolean installSuccess = installFromPack(getStorageDirectory().resolve("repo").resolve(selectedVersion).resolve(selectedEdition.name).toFile(), inheritedPackList);
                     if (installSuccess) {
                         button.setText("Installation succeeded!");
                         finishedSuccessfulInstall = true;
@@ -333,6 +337,15 @@ public class Installer {
         frame.setVisible(true);
 
         System.out.println("Launched!");
+    }
+
+    public List<InstallerMeta.Edition> createInheritanceList(InstallerMeta.Edition edition, List<InstallerMeta.Edition> list) {
+        if (!edition.inheritsFrom.equals("")) {
+            InstallerMeta.Edition nextEditionToInherit = EDITIONS.stream().filter(inheritFromEdition -> inheritFromEdition.name.equals(edition.inheritsFrom)).findFirst().get();
+            list.add(nextEditionToInherit);
+            createInheritanceList(nextEditionToInherit, list);
+        }
+        return list;
     }
 
     // Works up to 2GB because of long limitation
@@ -407,7 +420,7 @@ public class Installer {
         }
     }
 
-    public boolean installFromPack(File pack) {
+    public boolean installFromPack(File pack, List<File> inheritedPackList) {
         try {
             File[] files = pack.listFiles();
 
@@ -416,7 +429,19 @@ public class Installer {
             }
 
             deleteDirectories(selectedEdition.clearDirectories);
-            installFiles(files);
+
+            Collections.reverse(inheritedPackList); // Reverse - inherited editions are copied first so that inheriting editions can override configs properly
+            for (File inheritedPack : inheritedPackList) {
+                File[] inheritedFiles = inheritedPack.listFiles();
+
+                if (inheritedFiles == null) {
+                    return false;
+                }
+                installFiles(inheritedPack.toPath(), inheritedFiles);
+            }
+
+            installFiles(pack.toPath(), files);
+
             return true;
         } catch (IOException e) {
             e.printStackTrace();
@@ -424,9 +449,9 @@ public class Installer {
         }
     }
 
-    private void installFiles(File[] files) throws IOException {
+    private void installFiles(Path baseEntryPath, File[] files) throws IOException {
         for (File entry : files) {
-            String entryPath = getStorageDirectory().resolve("repo").resolve(selectedVersion).resolve(selectedEdition.name).relativize(entry.toPath()).toString();
+            String entryPath = baseEntryPath.relativize(entry.toPath()).toString();
 
             if (config.shouldUseCustomLoader() && entryPath.startsWith("mods" + File.separator)) {
                 entryPath = entryPath.replace("mods" + File.separator, "universe-reserved" + File.separator + selectedVersion + File.separator + selectedEdition.name + File.separator);
@@ -439,7 +464,7 @@ public class Installer {
                 // if the entry is a directory, make the directory
                 filePath.mkdir();
                 File[] subFiles = entry.listFiles();
-                if (subFiles != null) installFiles(subFiles);
+                if (subFiles != null) installFiles(baseEntryPath, subFiles);
             }
         }
     }

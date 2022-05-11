@@ -58,6 +58,7 @@ public class InstallerMeta {
     public static class Edition {
         String name;
         String displayName;
+        String inheritsFrom;
         String defaultInstallDir;
         List<String> compatibleVersions = new ArrayList<>();
         List<String> clearDirectories = new ArrayList<>();
@@ -66,7 +67,9 @@ public class InstallerMeta {
         public Edition(JSONObject jsonObject) {
             this.name = jsonObject.getString("name");
             this.displayName = jsonObject.getString("display_name");
+            this.inheritsFrom = jsonObject.getString("inherits_from");
             this.defaultInstallDir = jsonObject.getString("default_install_dir");
+            this.jvmArgsOverride = jsonObject.getString("jvm_args_override");
 
             for (int i = 0; i < jsonObject.getJSONArray("compatible_versions").toList().size(); i++){
                 compatibleVersions.add(jsonObject.getJSONArray("compatible_versions").toList().get(i).toString());
@@ -75,8 +78,6 @@ public class InstallerMeta {
             for (int i = 0; i < jsonObject.getJSONArray("clear_directories").toList().size(); i++){
                 clearDirectories.add(jsonObject.getJSONArray("clear_directories").toList().get(i).toString());
             }
-
-            jvmArgsOverride = jsonObject.getString("jvm_args_override");
         }
     }
 }
