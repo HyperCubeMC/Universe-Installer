@@ -24,7 +24,6 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -242,7 +241,7 @@ public class Installer {
             try {
                 URL customLoaderVersionUrl = new URL(MAVEN_URL + "latest-loader");
                 String loaderVersion = useCustomLoader ? Utils.readTextFile(customLoaderVersionUrl) : Main.LOADER_META.getLatestVersion(false).getVersion();
-                boolean success = VanillaLauncherIntegration.installToLauncher(getVanillaGameDir(), getInstallDir(), useCustomLoader ? selectedEdition.displayName + " for " + selectedVersion : "Fabric Loader " + selectedVersion, selectedVersion, loaderName, loaderVersion, useCustomLoader ? VanillaLauncherIntegration.Icon.UNIVERSE : VanillaLauncherIntegration.Icon.FABRIC);
+                boolean success = VanillaLauncherIntegration.installToLauncher(getVanillaGameDir(), getInstallDir(), selectedEdition.name, useCustomLoader ? selectedEdition.displayName + " for " + selectedVersion : "Fabric Loader " + selectedVersion, selectedVersion, loaderName, loaderVersion, selectedEdition.jvmArgsOverride.length() != 0 ? selectedEdition.jvmArgsOverride : INSTALLER_META.getDefaultJvmArgs(), useCustomLoader ? VanillaLauncherIntegration.Icon.UNIVERSE : VanillaLauncherIntegration.Icon.FABRIC);
                 if (!success) {
                     System.out.println("Failed to install to launcher, canceling!");
                     return;
@@ -288,7 +287,7 @@ public class Installer {
                     File installDir = getInstallDir().toFile();
                     if (!installDir.exists() || !installDir.isDirectory()) installDir.mkdirs();
 
-                    File modsFolder = useCustomLoader ? getInstallDir().resolve("universe-reserved").resolve(selectedVersion).toFile() : getInstallDir().resolve("mods").toFile();
+                    File modsFolder = useCustomLoader ? getInstallDir().resolve("universe-reserved").resolve(selectedVersion).resolve(selectedEdition.name).toFile() : getInstallDir().resolve("mods").toFile();
                     File[] modsFolderContents = modsFolder.listFiles();
                     if (modsFolderContents != null) {
                         boolean isEmpty = modsFolderContents.length == 0;
@@ -430,7 +429,7 @@ public class Installer {
             String entryPath = getStorageDirectory().resolve("repo").resolve(selectedVersion).resolve(selectedEdition.name).relativize(entry.toPath()).toString();
 
             if (config.shouldUseCustomLoader() && entryPath.startsWith("mods" + File.separator)) {
-                entryPath = entryPath.replace("mods" + File.separator, "universe-reserved" + File.separator + selectedVersion + File.separator);
+                entryPath = entryPath.replace("mods" + File.separator, "universe-reserved" + File.separator + selectedVersion + File.separator + selectedEdition.name + File.separator);
             }
 
             File filePath = getInstallDir().resolve(entryPath).toFile();

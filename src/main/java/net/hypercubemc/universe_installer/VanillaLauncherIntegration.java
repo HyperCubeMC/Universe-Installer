@@ -16,7 +16,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class VanillaLauncherIntegration {
-    public static boolean installToLauncher(Path vanillaGameDir, Path instanceDir, String profileName, String gameVersion, String loaderName, String loaderVersion, Icon icon) throws IOException {
+    public static boolean installToLauncher(Path vanillaGameDir, Path instanceDir, String editionName, String profileName, String gameVersion, String loaderName, String loaderVersion, String jvmArgs, Icon icon) throws IOException {
         String versionId = String.format("%s-%s-%s", loaderName, loaderVersion, gameVersion);
 
         ProfileInstaller.LauncherType launcherType = System.getProperty("os.name").contains("Windows") ? getLauncherType(vanillaGameDir) : /* Return standalone if we aren't on Windows.*/ ProfileInstaller.LauncherType.WIN32;
@@ -25,7 +25,7 @@ public class VanillaLauncherIntegration {
             return false;
         }
         installVersion(vanillaGameDir, gameVersion, loaderName, loaderVersion, launcherType);
-        installProfile(vanillaGameDir, instanceDir, profileName, versionId, icon, launcherType);
+        installProfile(vanillaGameDir, instanceDir, editionName, jvmArgs, profileName, versionId, icon, launcherType);
         return true;
     }
 
@@ -66,7 +66,7 @@ public class VanillaLauncherIntegration {
         }
     }
 
-    private static void installProfile(Path mcDir, Path instanceDir, String profileName, String versionId, Icon icon, ProfileInstaller.LauncherType launcherType) throws IOException {
+    private static void installProfile(Path mcDir, Path instanceDir, String editionName, String jvmArgs, String profileName, String versionId, Icon icon, ProfileInstaller.LauncherType launcherType) throws IOException {
         Path launcherProfiles = mcDir.resolve(launcherType.profileJsonName);
         if (!Files.exists(launcherProfiles)) {
             System.out.println("Could not find launcher_profiles");
@@ -85,34 +85,47 @@ public class VanillaLauncherIntegration {
             String key = it.next();
 
             JSONObject foundProfile = profiles.getJSONObject(key);
-            if (foundProfile.has("lastVersionId") && foundProfile.getString("lastVersionId").equals(versionId) && foundProfile.has("gameDir") && foundProfile.getString("gameDir").equals(instanceDir.toString())) {
+            if (foundProfile.has("javaArgs") && parseUniverseEdition(foundProfile.getString("javaArgs")).equals(editionName) && foundProfile.has("lastVersionId") && foundProfile.getString("lastVersionId").endsWith(versionId)) {
                 foundProfileName = key;
             }
         }
 
         // If the profile already exists, use it instead of making a new one so that user's settings are kept (e.g icon)
-        JSONObject profile = profiles.has(foundProfileName) ? profiles.getJSONObject(foundProfileName) : createProfile(profileName, instanceDir, versionId, icon);
-        profile.put("name", profileName);
-        profile.put("gameDir", instanceDir.toString());
-        profile.put("lastUsed", Utils.ISO_8601.format(new Date())); // Update timestamp to bring to top of profile list
-        profile.put("lastVersionId", versionId);
+        JSONObject profile = profiles.has(foundProfileName) ? editProfile(profiles.getJSONObject(foundProfileName), profileName, instanceDir, versionId, icon, editionName, jvmArgs) : createProfile(profileName, instanceDir, versionId, icon, editionName, jvmArgs);
 
         profiles.put(foundProfileName, profile);
         jsonObject.put("profiles", profiles);
 
-        Utils.writeToFile(launcherProfiles, jsonObject.toString());
+        Utils.writeToFile(launcherProfiles, jsonObject.toString(4));
     }
 
-    private static JSONObject createProfile(String name, Path instanceDir, String versionId, Icon icon) {
-        JSONObject jsonObject = new JSONObject();
-        jsonObject.put("name", name);
-        jsonObject.put("type", "custom");
-        jsonObject.put("created", Utils.ISO_8601.format(new Date()));
-        jsonObject.put("gameDir", instanceDir.toString());
-        jsonObject.put("lastUsed", Utils.ISO_8601.format(new Date()));
-        jsonObject.put("lastVersionId", versionId);
-        jsonObject.put("icon", getProfileIcon(icon));
-        return jsonObject;
+    public static JSONObject editProfile(JSONObject profile, String profileName, Path instanceDir, String versionId, Icon icon, String editionName, String jvmArgs) {
+        profile.put("name", profileName);
+        profile.put("gameDir", instanceDir.toString());
+        if (profile.has("javaArgs")) {
+            String[] args = profile.getString("javaArgs").split(" ");
+            int editionIndex = findUniverseEditionIndex(args);
+            if (editionIndex != -1) args[editionIndex] = "";
+            profile.put("javaArgs", Arrays.stream(args).filter(arg -> arg.length() != 0).collect(Collectors.joining(" ")) + " -DUniverseEdition=" + editionName);
+        } else {
+            profile.put("javaArgs", jvmArgs + " -DUniverseEdition=" + editionName);
+        }
+        profile.put("lastUsed", Utils.ISO_8601.format(new Date())); // Update timestamp to bring to top of profile list
+        profile.put("lastVersionId", versionId);
+        return profile;
+    }
+
+    private static JSONObject createProfile(String name, Path instanceDir, String versionId, Icon icon, String editionName, String jvmArgs) {
+        JSONObject profile = new JSONObject();
+        profile.put("name", name);
+        profile.put("type", "custom");
+        profile.put("created", Utils.ISO_8601.format(new Date()));
+        profile.put("gameDir", instanceDir.toString());
+        profile.put("javaArgs", jvmArgs + " -DUniverseEdition=" + editionName);
+        profile.put("lastUsed", Utils.ISO_8601.format(new Date()));
+        profile.put("lastVersionId", versionId);
+        profile.put("icon", getProfileIcon(icon));
+        return profile;
     }
 
     private static String getProfileIcon(Icon icon) {
@@ -195,6 +208,24 @@ public class VanillaLauncherIntegration {
 
     public static List<ProfileInstaller.LauncherType> getInstalledLauncherTypes(Path mcDir) {
         return Arrays.stream(ProfileInstaller.LauncherType.values()).filter((launcherType) -> Files.exists(mcDir.resolve(launcherType.profileJsonName))).collect(Collectors.toList());
+    }
+
+    public static String parseUniverseEdition(String javaArgs) {
+        String[] args = javaArgs.split(" ");
+        int editionIndex = findUniverseEditionIndex(args);
+        if (editionIndex == -1) return "";
+
+        return args[editionIndex].split("=")[1];
+    }
+    public static int findUniverseEditionIndex(String[] args) {
+        for (int i = 0; i < args.length; i++) {
+            String[] propertyValueList = args[i].split("=");
+            String property = propertyValueList[0];
+            if (property.equals("-DUniverseEdition") && propertyValueList.length == 2) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     public enum Icon {

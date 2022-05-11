@@ -25,16 +25,16 @@ repositories {
 }
 
 dependencies {
-    implementation "org.json:json:20210307"
-    implementation 'com.formdev:flatlaf:1.6.1'
+    implementation 'org.json:json:20220320'
+    implementation 'com.formdev:flatlaf:2.2'
     // Custom jgit with support for shallow cloning by me
     implementation name: "org.eclipse.jgit-6.0.0-SNAPSHOT"
     // Manual dependencies for custom built jgit
-    implementation 'org.slf4j:slf4j-api:1.7.32'
-    implementation 'org.slf4j:slf4j-log4j12:1.7.32'
+    implementation 'org.slf4j:slf4j-api:1.7.36'
+    implementation 'org.slf4j:slf4j-log4j12:1.7.36'
     implementation "com.jcraft:jsch:0.1.55"
 
-    implementation "net.fabricmc:fabric-installer:0.9.0"
+    implementation "net.fabricmc:fabric-installer:0.10.2"
 }
 
 application {

@@ -14,6 +14,7 @@ import java.util.List;
 
 public class InstallerMeta {
     private final String metaUrl;
+    private String defaultJvmArgs;
     private final List<String> gameVersions = new ArrayList<>();
     private final List<InstallerMeta.Edition> editions = new ArrayList<>();
 
@@ -23,16 +24,21 @@ public class InstallerMeta {
 
     public void load() throws IOException, JSONException {
         JSONObject json = readJsonFromUrl(this.metaUrl);
+        defaultJvmArgs = json.getString("default_jvm_args");
         json.getJSONArray("game_versions").toList().forEach(element -> gameVersions.add(element.toString()));
         json.getJSONArray("editions").forEach(object -> editions.add(new Edition((JSONObject) object)));
     }
 
+    public String getDefaultJvmArgs() {
+        return defaultJvmArgs;
+    }
+
     public List<String> getGameVersions() {
-        return this.gameVersions;
+        return gameVersions;
     }
 
     public List<InstallerMeta.Edition> getEditions() {
-        return this.editions;
+        return editions;
     }
 
     public static String readAll(Reader reader) throws IOException {
@@ -55,6 +61,7 @@ public class InstallerMeta {
         String defaultInstallDir;
         List<String> compatibleVersions = new ArrayList<>();
         List<String> clearDirectories = new ArrayList<>();
+        String jvmArgsOverride;
 
         public Edition(JSONObject jsonObject) {
             this.name = jsonObject.getString("name");
@@ -68,6 +75,8 @@ public class InstallerMeta {
             for (int i = 0; i < jsonObject.getJSONArray("clear_directories").toList().size(); i++){
                 clearDirectories.add(jsonObject.getJSONArray("clear_directories").toList().get(i).toString());
             }
+
+            jvmArgsOverride = jsonObject.getString("jvm_args_override");
         }
     }
 }
