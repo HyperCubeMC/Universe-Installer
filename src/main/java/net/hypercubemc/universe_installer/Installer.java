@@ -2,6 +2,7 @@ package net.hypercubemc.universe_installer;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
+import io.github.g00fy2.versioncompare.Version;
 import net.fabricmc.installer.Main;
 import net.fabricmc.installer.util.MetaHandler;
 import net.fabricmc.installer.util.Reference;
@@ -19,23 +20,29 @@ import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Matcher;
 
 public class Installer {
+    InstallerUpdater INSTALLER_UPDATER;
     InstallerMeta INSTALLER_META;
     List<InstallerMeta.Edition> EDITIONS;
     List<String> GAME_VERSIONS;
     String MAVEN_URL = "https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Maven/master/";
     String META_URL = "https://raw.githubusercontent.com/HyperCubeMC/Universe-Installer-Files/master/meta.json";
     String REPO_URL = "https://github.com/HyperCubeMC/Universe-Installer-Files.git";
+    String RELEASE_INFO_URL = "https://api.github.com/repos/HyperCubeMC/Universe-Installer/releases/latest";
 
     InstallerMeta.Edition selectedEdition;
     String selectedVersion;
@@ -63,6 +70,30 @@ public class Installer {
         INSTANCE.start();
     }
 
+    public JEditorPane createHtmlMessage(String html) {
+        JLabel label = new JLabel();
+        Font font = label.getFont();
+
+        String style = "font-family:" + font.getFamily() + ";" + "font-weight:" + (font.isBold() ? "bold" : "normal") + ";" +
+                "font-size:" + font.getSize() + "pt;";
+
+        JEditorPane message = new JEditorPane("text/html", "<html><body style=\"" + style + "\">"
+                + html
+                + "</body></html>");
+
+        message.addHyperlinkListener(e -> {
+            if (e.getEventType().equals(HyperlinkEvent.EventType.ACTIVATED)) {
+                try {
+                    Desktop.getDesktop().browse(e.getURL().toURI());
+                } catch (IOException | URISyntaxException ignored) {}
+            }
+        });
+        message.setEditable(false);
+        message.setBackground(label.getBackground());
+
+        return message;
+    }
+
     public void start() {
         boolean dark = DarkModeDetector.isDarkMode();
         System.setProperty("apple.awt.application.appearance", "system");
@@ -74,37 +105,56 @@ public class Installer {
 
         // JGit now depends on Java 11+
         if (Float.parseFloat(System.getProperty("java.specification.version")) < 11) {
-            JLabel label = new JLabel();
-            Font font = label.getFont();
-
-            String style = "font-family:" + font.getFamily() + ";" + "font-weight:" + (font.isBold() ? "bold" : "normal") + ";" +
-                    "font-size:" + font.getSize() + "pt;";
-
-            JEditorPane message = new JEditorPane("text/html", "<html><body style=\"" + style + "\">"
-                    + "This program requires Java 11 or above to run. Please install an updated Java release from <a href=\"https://adoptium.net/\">https://adoptium.net</a>"
-                    + "</body></html>");
-
-            message.addHyperlinkListener(e -> {
-                if (e.getEventType().equals(HyperlinkEvent.EventType.ACTIVATED)) {
-                    try {
-                        Desktop.getDesktop().browse(e.getURL().toURI());
-                    } catch (IOException | URISyntaxException ignored) {}
-                }
-            });
-            message.setEditable(false);
-            message.setBackground(label.getBackground());
-            JOptionPane.showMessageDialog(null, message, "Outdated Java", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(null, createHtmlMessage("This program requires Java 11 or above to run. Please install an updated Java release from <a href=\"https://adoptium.net/\">https://adoptium.net</a>"), "Outdated Java", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
-        Main.LOADER_META = new MetaHandler(Reference.getMetaServerEndpoint("v2/versions/loader"));
+        INSTALLER_UPDATER = new InstallerUpdater(RELEASE_INFO_URL);
         try {
-            Main.LOADER_META.load();
-        } catch (Exception e) {
-            System.out.println("Failed to fetch fabric version info from the server!");
+            INSTALLER_UPDATER.fetchReleaseInfo();
+        } catch (IOException e) {
+            System.out.println("Failed to fetch installer release info from the server!");
             e.printStackTrace();
-            JOptionPane.showMessageDialog(null, "The installer was unable to fetch fabric version info from the server, please check your internet connection and try again later.", "Please check your internet connection!", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(null, "The installer was unable to fetch release info from the server, please check your internet connection and try again later.", "Please check your internet connection!", JOptionPane.ERROR_MESSAGE);
             return;
+        } catch (JSONException e) {
+            System.out.println("Failed to parse installer release info!");
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Installer release info parsing failed, please contact Justsnoopy30! \nError: " + e, "Release Data Parsing Failed!", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        String localVersion = Installer.class.getPackage().getImplementationVersion();
+        if (localVersion != null) {
+            boolean isUpdateAvailable = new Version(INSTALLER_UPDATER.getLatestVersion()).isHigherThan(new Version(localVersion));
+            if (isUpdateAvailable) {
+                int result = JOptionPane.showConfirmDialog(null, "A newer version of the installer is available: " + INSTALLER_UPDATER.getLatestVersion() + "\nWould you like to install it?\nThe installer may not function if you continue to use an older version.", "Installer Update Available", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+                if (result == JOptionPane.YES_OPTION) {
+                    String downloadURL = INSTALLER_UPDATER.getDownloadURL();
+                    String[] downloadURLParts = downloadURL.split("/");
+                    String fileName = downloadURLParts[downloadURLParts.length - 1];
+                    try {
+                        InputStream inputStream = new URL(downloadURL).openStream();
+                        Files.copy(inputStream, Paths.get(fileName), StandardCopyOption.REPLACE_EXISTING);
+                    } catch (IOException e) {
+                        System.out.println("Failed to download installer update!");
+                        e.printStackTrace();
+                        String releasePage = INSTALLER_UPDATER.getPageURL();
+                        JEditorPane message = createHtmlMessage("The installer was unable to download the installer update, please check your internet connection and try again later.<br>You can also try downloading the update yourself from the releases page: <a href=\"" + releasePage + "\">" + releasePage + "</a>");
+                        JOptionPane.showMessageDialog(null, message, "Failed to download installer update!", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+
+                    try {
+                        Runtime.getRuntime().exec(System.getProperty("java.home") + File.separator + "bin" + File.separator + "java -jar " + fileName);
+                    } catch (IOException e) {
+                        System.out.println("Failed to launch updated installer!");
+                        e.printStackTrace();
+                        JOptionPane.showMessageDialog(null, "The installer was unable to launch the updated installer, please report the error below to Justsnoopy30!\nError: " + e + "\nIn the meantime, you can just launch the new installer jar that has been downloaded to your files yourself.", "Failed to launch updated installer!", JOptionPane.ERROR_MESSAGE);
+                    }
+                    return;
+                }
+            }
         }
 
         INSTALLER_META = new InstallerMeta(META_URL);
@@ -124,6 +174,16 @@ public class Installer {
 
         GAME_VERSIONS = INSTALLER_META.getGameVersions();
         EDITIONS = INSTALLER_META.getEditions();
+
+        Main.LOADER_META = new MetaHandler(Reference.getMetaServerEndpoint("v2/versions/loader"));
+        try {
+            Main.LOADER_META.load();
+        } catch (Exception e) {
+            System.out.println("Failed to fetch fabric version info from the server!");
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "The installer was unable to fetch fabric version info from the server, please check your internet connection and try again later.", "Please check your internet connection!", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
 
         frame = new JFrame("Universe Installer");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);

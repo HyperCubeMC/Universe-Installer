@@ -60,9 +60,9 @@ public class InstallerMeta {
         String displayName;
         String inheritsFrom;
         String defaultInstallDir;
+        String jvmArgsOverride;
         List<String> compatibleVersions = new ArrayList<>();
         List<String> clearDirectories = new ArrayList<>();
-        String jvmArgsOverride;
 
         public Edition(JSONObject jsonObject) {
             this.name = jsonObject.getString("name");

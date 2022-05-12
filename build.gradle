@@ -33,6 +33,7 @@ dependencies {
     implementation 'org.slf4j:slf4j-api:1.7.36'
     implementation 'org.slf4j:slf4j-log4j12:1.7.36'
     implementation "com.jcraft:jsch:0.1.55"
+    implementation "io.github.g00fy2:versioncompare:1.5.0"
 
     implementation "net.fabricmc:fabric-installer:0.10.2"
 }
@@ -73,7 +74,10 @@ build.dependsOn nativeExe
 
 jar {
     manifest {
-        attributes("Main-Class": application.mainClass)
+        attributes("Main-Class": application.mainClass,
+                   "Implementation-Title": project.archives_base_name,
+                   "Implementation-Version": project.version
+        )
     }
 
     from "LICENSE"
